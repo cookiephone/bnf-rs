@@ -1,0 +1,8 @@
+[package]
+name = "bnf_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+itertools = "*" # used for intersperse, potentially stable in core soon, remove dependency once stable
+rand = "*"

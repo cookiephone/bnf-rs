@@ -1,0 +1,19 @@
+[workspace]
+members = ["."]
+
+[package]
+name = "bnf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bnf_core = { path = "core" }
+bnf_macros = { path = "macros" }
+
+[dev-dependencies]
+criterion = "*"
+plotters = "*"
+
+[[bench]]
+name = "benchmark"
+harness = false

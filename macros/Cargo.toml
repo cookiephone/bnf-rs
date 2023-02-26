@@ -1,0 +1,12 @@
+[package]
+name = "bnf_macros"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+bnf_core = { path = "../core" }
+itertools = "*"
+quote = "*"
