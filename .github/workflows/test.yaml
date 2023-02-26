@@ -1,4 +1,4 @@
-name: test with code coverage
+name: test
 
 on:
   pull_request:
