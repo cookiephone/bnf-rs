@@ -1,4 +1,4 @@
-name: test with code coverage
+name: format
 
 on:
   pull_request:
@@ -11,8 +11,8 @@ env:
 
 jobs:
 
-  test:
-    name: test
+  format:
+    name: format
     runs-on: ubuntu-latest
     steps:
       - name: checkout repository
@@ -22,14 +22,10 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          components: rustfmt
           override: true
-      - name: install tarpaulin
+      - name: run rustfmt
         uses: actions-rs/cargo@v1
         with:
-          command: install
-          args: cargo-tarpaulin
-      - name: run tarpaulin
-        uses: actions-rs/cargo@v1
-        with:
-          command: tarpaulin
-          args: --coveralls ${{ secrets.COVERALLS_TOKEN }}
+          command: fmt
+          args: --all -- --check
