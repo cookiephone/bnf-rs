@@ -60,7 +60,8 @@ fn test_playground_bnf() {
                         Term::Nonterminal("eol".to_string()),
                     ],
                     vec![
-                        Term::Nonterminal("line_end".to_string()),
+                        Term::Nonterminal("opt_whitespace".to_string()),
+                        Term::Nonterminal("eol".to_string()),
                         Term::Nonterminal("line_end".to_string()),
                     ],
                 ]),

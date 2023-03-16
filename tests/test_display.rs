@@ -63,7 +63,7 @@ fn test_display_grammar() {
             | \"U\" | \"V\" | \"W\" | \"X\" | \"Y\" | \"Z\" | \"a\" | \"b\" | \"c\" | \"d\" | \"e\" \
             | \"f\" | \"g\" | \"h\" | \"i\" | \"j\" | \"k\" | \"l\" | \"m\" | \"n\" | \"o\" | \"p\" \
             | \"q\" | \"r\" | \"s\" | \"t\" | \"u\" | \"v\" | \"w\" | \"x\" | \"y\" | \"z\"\n\
-        <line_end> ::= <opt_whitespace> <eol> | <line_end> <line_end>\n\
+        <line_end> ::= <opt_whitespace> <eol> | <opt_whitespace> <eol> <line_end>\n\
         <list> ::= <term> | <term> <opt_whitespace> <list>\n\
         <literal> ::= \"\\\"\" <text1> \"\\\"\" | \"\\\'\" <text2> \"\\\'\"\n\
         <opt_whitespace> ::= \" \" <opt_whitespace> | \"\"\n\

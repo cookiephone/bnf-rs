@@ -50,15 +50,13 @@ pub enum GenerationStrategy {
 impl GenerationStrategy {
     pub(crate) fn step(&self, context: &mut Generator) -> Result<(), Error> {
         let nonterminal = context.stack.pop().unwrap();
-        let rule =
-            context
-                .grammar
-                .rule_lut
-                .get(&nonterminal)
-                .ok_or(Error::UnknownNonterminalError(format!(
-                    "no production rule for nonterminal {} found",
-                    nonterminal
-                )))?;
+        let rule = context
+            .grammar
+            .rule_for(&nonterminal)
+            .ok_or(Error::UnknownNonterminalError(format!(
+                "no production rule for nonterminal {} found",
+                nonterminal
+            )))?;
         match self {
             GenerationStrategy::UniformRHSSampling => {
                 let terms = rule.rhs.alternatives.choose(&mut context.rng).unwrap();

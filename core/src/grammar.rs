@@ -2,6 +2,7 @@ use crate::codify::Codify;
 use crate::error::Error;
 use crate::generator::GenerationStrategy;
 use crate::generator::Generator;
+use crate::parser::ExtendedEarleyParser;
 use crate::rule::Rule;
 use crate::term::Term;
 use itertools::Itertools;
@@ -13,7 +14,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Grammar {
     pub(crate) start: Term,
-    rules: Vec<Rule>,
+    pub(crate) rules: Vec<Rule>,
     pub(crate) rule_lut: HashMap<Term, Rule>,
 }
 
@@ -49,6 +50,35 @@ impl Grammar {
             },
         };
         generator.generate(strategy.unwrap_or(GenerationStrategy::UniformRHSSampling))
+    }
+
+    pub fn parse(&self, input: &str) {
+        // TODO
+    }
+
+    pub fn recognize(&self, input: &str) -> bool {
+        ExtendedEarleyParser::recognize(self, input)
+    }
+
+    pub(crate) fn rule_for(&self, term: &Term) -> Option<&Rule> {
+        self.rule_lut.get(term)
+    }
+
+    pub fn atomize_terminals(&mut self) {
+        for rule in self.rules.iter_mut() {
+            for alternative in rule.rhs.alternatives.iter_mut() {
+                let mut tmp = Vec::new();
+                for term in alternative.iter_mut() {
+                    if term.is_nonterminal() || term.is_atomic_terminal() {
+                        tmp.push(term.to_owned());
+                    } else {
+                        tmp.append(&mut term.atomize().unwrap());
+                    }
+                }
+                *alternative = tmp;
+            }
+        }
+        self.rule_lut = build_rule_lut(&self.rules);
     }
 }
 

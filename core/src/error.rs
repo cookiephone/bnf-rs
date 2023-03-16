@@ -4,4 +4,5 @@ pub enum Error {
     UnknownNonterminalError(String),
     NotATerminalError(String),
     InfinitelyRecursiveProductionError(String),
+    EmptyGrammarError(String),
 }

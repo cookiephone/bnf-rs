@@ -8,7 +8,7 @@ pub fn grammar_bnf() -> Grammar {
         rule            = opt_whitespace "<" rule_name ">" opt_whitespace "::=" opt_whitespace expression line_end
         opt_whitespace  = " " opt_whitespace | ""
         expression      = list | list opt_whitespace "|" opt_whitespace expression
-        line_end        = opt_whitespace eol | line_end line_end
+        line_end        = opt_whitespace eol | opt_whitespace eol line_end
         list            = term | term opt_whitespace list
         term            = literal | "<" rule_name ">"
         literal         = "\"" text1 "\"" | "'" text2 "'"

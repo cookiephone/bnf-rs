@@ -4,8 +4,8 @@ use bnf::*;
 fn test_generation_generate() {
     let grammar = playground::grammar_bnf();
     for _ in 0..100 {
-        let _word = grammar.generate().unwrap();
-        // TODO: parse word as grammar to check validity
+        let word = grammar.generate().unwrap();
+        assert!(grammar.recognize(word.as_str()));
     }
 }
 
@@ -18,9 +18,9 @@ fn test_generation_generate_parameterized() {
             GenerationStrategy::RecursionAvoidance,
             GenerationStrategy::GreedyTerminals,
         ] {
-            let _word1 = grammar.generate_parameterized(*strategy, seed).unwrap();
+            let word = grammar.generate_parameterized(*strategy, seed).unwrap();
+            assert!(grammar.recognize(word.as_str()));
         }
-        // TODO: parse words as grammar to check validity
     }
 }
 

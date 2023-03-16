@@ -17,6 +17,32 @@ impl Term {
             )),
         }
     }
+
+    pub fn is_epsilon(&self) -> bool {
+        matches!(self, Term::Terminal(s) if s.is_empty())
+    }
+
+    pub fn is_atomic_terminal(&self) -> bool {
+        matches!(self, Term::Terminal(s) if s.len() == 1)
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Term::Terminal(_))
+    }
+
+    pub fn is_nonterminal(&self) -> bool {
+        matches!(self, Term::Nonterminal(_))
+    }
+
+    pub fn atomize(&self) -> Result<Vec<Self>, Error> {
+        if let Term::Terminal(s) = self {
+            Ok(s.chars().map(|c| Term::Terminal(c.to_string())).collect())
+        } else {
+            Err(Error::NotATerminalError(
+                "expected a terminal for atomization".to_owned(),
+            ))
+        }
+    }
 }
 
 impl fmt::Display for Term {
