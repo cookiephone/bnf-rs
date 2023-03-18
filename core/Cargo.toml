@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rustc-hash = { version = "*", default-features = false }
+nohash-hasher = { version = "*", default-features = false }
 itertools = "*" # used for intersperse, potentially stable in core soon, remove dependency once stable
 rand = "*"

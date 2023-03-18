@@ -1,10 +1,15 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
 use crate::term::Term;
+use nohash_hasher::NoHashHasher;
+use rustc_hash::FxHasher;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
+use std::hash::BuildHasher;
+use std::hash::BuildHasherDefault;
 use std::hash::Hash;
+use std::hash::Hasher;
 
 #[derive(Hash, Eq, PartialEq, Clone)]
 struct EarleyState {
@@ -57,8 +62,9 @@ impl fmt::Display for EarleyState {
 struct Column {
     symbol: char,
     states: Vec<EarleyState>,
-    unique: HashSet<EarleyState>, // use hash of state instead or maybe index set
-    transitive: HashMap<Term, EarleyState>,
+    unique: HashSet<u64, BuildHasherDefault<NoHashHasher<u64>>>,
+    transitive: HashMap<Term, EarleyState, BuildHasherDefault<FxHasher>>,
+    hash_builder: BuildHasherDefault<FxHasher>,
 }
 
 impl Column {
@@ -66,8 +72,9 @@ impl Column {
         Self {
             symbol,
             states: Vec::new(),
-            unique: HashSet::new(),
-            transitive: HashMap::new(),
+            unique: Default::default(),
+            transitive: Default::default(),
+            hash_builder: Default::default(),
         }
     }
 
@@ -78,8 +85,11 @@ impl Column {
     }
 
     fn add(&mut self, state: EarleyState) {
-        if !self.unique.contains(&state) {
-            self.unique.insert(state.clone());
+        let mut hasher = self.hash_builder.build_hasher();
+        state.hash(&mut hasher);
+        let hash = hasher.finish();
+        if !self.unique.contains(&hash) {
+            self.unique.insert(hash);
             self.states.push(state);
         }
     }
