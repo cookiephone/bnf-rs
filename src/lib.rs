@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 pub mod playground;
 pub use bnf_core::{
     Alternatives, Codify, Error, ExtendedEarleyParser, GenerationStrategy, Grammar, GrammarBuilder,
