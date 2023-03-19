@@ -106,7 +106,7 @@ impl Column {
 pub struct ExtendedEarleyParser {
     grammar: Grammar,
     input: Vec<char>,
-    nullable: HashSet<Term>,
+    nullable: HashSet<Term, BuildHasherDefault<FxHasher>>,
     state_table: Vec<Column>,
 }
 
