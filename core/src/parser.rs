@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::rc::Rc;
 
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 struct EarleyState {
     lhs: Term,
     expression: Rc<Vec<Term>>,
@@ -41,6 +41,15 @@ impl EarleyState {
 
     fn at_dot(&self) -> Option<&Term> {
         self.expression.get(self.dot)
+    }
+}
+
+impl Hash for EarleyState {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.lhs.hash(state);
+        self.expression.as_ptr().hash(state);
+        self.dot.hash(state);
+        self.start.hash(state);
     }
 }
 

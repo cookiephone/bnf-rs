@@ -1,6 +1,7 @@
 use crate::codify::Codify;
 use crate::error::Error;
 use std::fmt;
+use std::hash::Hash;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Term {
