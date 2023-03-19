@@ -10,17 +10,18 @@ use std::hash::BuildHasher;
 use std::hash::BuildHasherDefault;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::rc::Rc;
 
 #[derive(Hash, Eq, PartialEq, Clone)]
 struct EarleyState {
     lhs: Term,
-    expression: Vec<Term>,
+    expression: Rc<Vec<Term>>,
     dot: usize,
     start: usize,
 }
 
 impl EarleyState {
-    fn new(lhs: Term, expression: Vec<Term>, dot: usize, start: usize) -> Self {
+    fn new(lhs: Term, expression: Rc<Vec<Term>>, dot: usize, start: usize) -> Self {
         Self {
             lhs,
             expression,
@@ -103,27 +104,28 @@ impl Column {
     }
 }
 
-pub struct ExtendedEarleyParser {
+struct ParsingContext {
     grammar: Grammar,
     input: Vec<char>,
     nullable: HashSet<Term, BuildHasherDefault<FxHasher>>,
-    state_table: Vec<Column>,
 }
 
-impl ExtendedEarleyParser {
-    fn init(&mut self, input: &str) {
-        self.input = input.chars().collect();
-        self.init_state_table();
-        self.compute_nullable_nonterminals();
-        self.seed();
+impl From<&Grammar> for ParsingContext {
+    fn from(grammar: &Grammar) -> Self {
+        let mut instance = Self {
+            grammar: grammar.clone(),
+            input: Default::default(),
+            nullable: Default::default(),
+        };
+        instance.init();
+        instance
     }
+}
 
-    fn init_state_table(&mut self) {
-        self.state_table = Vec::with_capacity(self.input.len() + 1);
-        self.state_table.push(Column::new('_'));
-        for symbol in &self.input {
-            self.state_table.push(Column::new(*symbol));
-        }
+impl ParsingContext {
+    fn init(&mut self) {
+        self.grammar.atomize_terminals();
+        self.compute_nullable_nonterminals();
     }
 
     fn compute_nullable_nonterminals(&mut self) {
@@ -144,48 +146,39 @@ impl ExtendedEarleyParser {
             }
         }
     }
+}
 
-    fn seed(&mut self) {
-        let initial_rule = self
+#[derive(Default)]
+struct ParsingState {
+    state_table: Vec<Column>,
+}
+
+impl ParsingState {
+    fn predict(
+        &mut self,
+        context: &ParsingContext,
+        col: usize,
+        state_index: usize,
+        nonterminal: &Term,
+    ) {
+        for alternative in &context
             .grammar
-            .rule_lut
-            .get(&self.grammar.start)
-            .ok_or(Error::EmptyGrammarError(
-                "cannot seed earley state table without initial rule".to_owned(),
-            ))
-            .unwrap();
-        for expression in &initial_rule.rhs.alternatives {
-            self.state_table[0].add(EarleyState::new(
-                initial_rule.lhs.clone(),
-                expression.to_vec(),
+            .rule_for(nonterminal)
+            .unwrap()
+            .rhs
+            .alternatives
+        {
+            self.state_table[col].add(EarleyState::new(
+                nonterminal.clone(),
+                alternative.clone(),
                 0,
-                0,
-            ))
+                col,
+            ));
         }
-    }
-
-    pub fn dump(&self) -> String {
-        let mut s = String::new();
-        s.push_str("============================================\n");
-        s.push_str("state table\n");
-        s.push_str("============================================\n");
-        for (start, column) in self.state_table.iter().enumerate() {
-            if !column.is_empty() {
-                s.push_str(
-                    format!(
-                        "[column: {} | symbol: '{}']\n",
-                        start,
-                        column.symbol.escape_default()
-                    )
-                    .as_str(),
-                );
-                for state in column.states.iter() {
-                    s.push_str(format!("    {}\n", state).as_str());
-                }
-            }
+        if context.nullable.contains(nonterminal) {
+            let new_state = self.state_table[col].states[state_index].advance();
+            self.state_table[col].add(new_state);
         }
-        s.push_str("============================================\n");
-        s
     }
 
     fn scan(&mut self, col: usize, state_index: usize, symbol_opt: Option<char>) {
@@ -195,18 +188,25 @@ impl ExtendedEarleyParser {
         }
     }
 
-    fn predict(&mut self, col: usize, state_index: usize, nonterminal: &Term) {
-        for alternative in &self.grammar.rule_for(nonterminal).unwrap().rhs.alternatives {
-            self.state_table[col].add(EarleyState::new(
-                nonterminal.clone(),
-                alternative.clone(),
-                0,
-                col,
-            ));
+    fn leo_complete(&mut self, col: usize, state_index: usize) {
+        let state = self.state_table[col].states[state_index].clone();
+        if let Some(topmost) = self.deterministic_reduction(&state) {
+            self.state_table[col].add(topmost);
+        } else {
+            self.earley_complete(col, state_index);
         }
-        if self.nullable.contains(nonterminal) {
-            let new_state = self.state_table[col].states[state_index].advance();
-            self.state_table[col].add(new_state);
+    }
+
+    fn earley_complete(&mut self, col: usize, state_index: usize) {
+        let state = &self.state_table[col].states[state_index];
+        let completions = self.state_table[state.start]
+            .states
+            .iter()
+            .filter(|s| s.at_dot().is_some() && *s.at_dot().unwrap() == state.lhs)
+            .map(|parent| parent.advance())
+            .collect::<Vec<EarleyState>>();
+        for completion in completions {
+            self.state_table[col].add(completion);
         }
     }
 
@@ -226,15 +226,6 @@ impl ExtendedEarleyParser {
         None
     }
 
-    fn leo_complete(&mut self, col: usize, state_index: usize) {
-        let state = self.state_table[col].states[state_index].clone();
-        if let Some(topmost) = self.deterministic_reduction(&state) {
-            self.state_table[col].add(topmost);
-        } else {
-            self.earley_complete(col, state_index);
-        }
-    }
-
     fn unique_postdot(&mut self, state: &EarleyState) -> Option<EarleyState> {
         let parents = self.state_table[state.start]
             .states
@@ -251,73 +242,122 @@ impl ExtendedEarleyParser {
         }
         None
     }
+}
 
-    fn earley_complete(&mut self, col: usize, state_index: usize) {
-        let state = &self.state_table[col].states[state_index];
-        let completions = self.state_table[state.start]
-            .states
-            .iter()
-            .filter(|s| s.at_dot().is_some() && *s.at_dot().unwrap() == state.lhs)
-            .map(|parent| parent.advance())
-            .collect::<Vec<EarleyState>>();
-        for completion in completions {
-            self.state_table[col].add(completion);
+pub struct ExtendedEarleyParser {
+    context: ParsingContext,
+    state: ParsingState,
+}
+
+impl ExtendedEarleyParser {
+    fn init_input(&mut self, input: &str) {
+        self.context.input = input.chars().collect();
+        self.init_state_table();
+        self.seed_state_table();
+    }
+
+    fn init_state_table(&mut self) {
+        self.state.state_table = Vec::with_capacity(self.context.input.len() + 1);
+        self.state.state_table.push(Column::new('_'));
+        for symbol in &self.context.input {
+            self.state.state_table.push(Column::new(*symbol));
         }
     }
 
+    fn seed_state_table(&mut self) {
+        let initial_rule = self
+            .context
+            .grammar
+            .rule_lut
+            .get(&self.context.grammar.start)
+            .ok_or(Error::EmptyGrammarError(
+                "cannot seed earley state table without initial rule".to_owned(),
+            ))
+            .unwrap();
+        for alternative in &initial_rule.rhs.alternatives {
+            self.state.state_table[0].add(EarleyState::new(
+                initial_rule.lhs.clone(),
+                alternative.clone(), //.to_vec(),
+                0,
+                0,
+            ))
+        }
+    }
+
+    pub fn dump(&self) -> String {
+        let mut s = String::new();
+        s.push_str("============================================\n");
+        s.push_str("state table\n");
+        s.push_str("============================================\n");
+        for (start, column) in self.state.state_table.iter().enumerate() {
+            if !column.is_empty() {
+                s.push_str(
+                    format!(
+                        "[column: {} | symbol: '{}']\n",
+                        start,
+                        column.symbol.escape_default()
+                    )
+                    .as_str(),
+                );
+                for state in column.states.iter() {
+                    s.push_str(format!("    {}\n", state).as_str());
+                }
+            }
+        }
+        s.push_str("============================================\n");
+        s
+    }
+
     fn chart_parse(&mut self) {
-        let n_columns = self.state_table.len();
+        let n_columns = self.state.state_table.len();
         for col in 0..n_columns {
             let mut state_index = 0;
-            let mut n_states = self.state_table[col].len();
+            let mut n_states = self.state.state_table[col].len();
             while state_index < n_states {
-                let state = &self.state_table[col].states[state_index];
+                let state = &self.state.state_table[col].states[state_index];
                 match state.at_dot() {
-                    Some(term) if self.grammar.rule_for(term).is_some() => {
+                    Some(term) if self.context.grammar.rule_for(term).is_some() => {
                         let term = term.clone();
-                        self.predict(col, state_index, &term);
+                        self.state.predict(&self.context, col, state_index, &term);
                     }
                     Some(Term::Terminal(s)) => {
                         let next_col = col + 1;
                         if next_col < n_columns {
                             let symbol = s.chars().next();
-                            self.scan(next_col, state_index, symbol);
+                            self.state.scan(next_col, state_index, symbol);
                         }
                     }
                     None => {
-                        self.leo_complete(col, state_index);
+                        self.state.leo_complete(col, state_index);
                     }
                     other => panic!("encountered nonterminal which does not appear in the left-hand side of any production rule: {:?}", other),
                 }
                 state_index += 1;
-                n_states = self.state_table[col].len();
+                n_states = self.state.state_table[col].len();
             }
         }
     }
 
     pub fn recognize(grammar: &Grammar, input: &str) -> bool {
         let mut parser = Self::from(grammar);
-        parser.init(input);
+        parser.init_input(input);
         parser.chart_parse();
         parser
+            .state
             .state_table
             .last()
             .unwrap()
             .states
             .iter()
-            .any(|state| state.at_dot().is_none() && state.lhs == parser.grammar.start)
+            .any(|state| state.at_dot().is_none() && state.lhs == parser.context.grammar.start)
     }
 }
 
 impl From<&Grammar> for ExtendedEarleyParser {
     fn from(grammar: &Grammar) -> Self {
-        let mut grammar_clone = grammar.clone();
-        grammar_clone.atomize_terminals();
         Self {
-            grammar: grammar_clone,
-            input: Default::default(),
-            nullable: Default::default(),
-            state_table: Default::default(),
+            context: grammar.into(),
+            state: Default::default(),
         }
     }
 }

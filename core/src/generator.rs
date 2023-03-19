@@ -6,10 +6,10 @@ use rand::seq::IteratorRandom;
 use rand::seq::SliceRandom;
 
 pub(crate) struct Generator<'a> {
-    pub grammar: &'a Grammar,
-    pub stack: Vec<Term>,
-    pub sample: String,
-    pub rng: StdRng,
+    pub(crate) grammar: &'a Grammar,
+    pub(crate) stack: Vec<Term>,
+    pub(crate) sample: String,
+    pub(crate) rng: StdRng,
 }
 
 impl Generator<'_> {

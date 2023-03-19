@@ -8,14 +8,17 @@ use crate::term::Term;
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rustc_hash::FxHasher;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::BuildHasherDefault;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Grammar {
     pub(crate) start: Term,
     pub(crate) rules: Vec<Rule>,
-    pub(crate) rule_lut: HashMap<Term, Rule>,
+    pub(crate) rule_lut: HashMap<Term, Rule, BuildHasherDefault<FxHasher>>,
 }
 
 impl Grammar {
@@ -68,14 +71,14 @@ impl Grammar {
         for rule in self.rules.iter_mut() {
             for alternative in rule.rhs.alternatives.iter_mut() {
                 let mut tmp = Vec::new();
-                for term in alternative.iter_mut() {
+                for term in alternative.iter() {
                     if term.is_nonterminal() || term.is_atomic_terminal() {
                         tmp.push(term.to_owned());
                     } else {
                         tmp.append(&mut term.atomize().unwrap());
                     }
                 }
-                *alternative = tmp;
+                *alternative = Rc::new(tmp);
             }
         }
         self.rule_lut = build_rule_lut(&self.rules);
@@ -168,7 +171,7 @@ impl GrammarBuilder {
     }
 }
 
-fn build_rule_lut(rules: &[Rule]) -> HashMap<Term, Rule> {
+fn build_rule_lut(rules: &[Rule]) -> HashMap<Term, Rule, BuildHasherDefault<FxHasher>> {
     rules
         .iter()
         .map(|rule| (rule.lhs.clone(), rule.clone()))

@@ -2,10 +2,11 @@ use crate::codify::Codify;
 use crate::term::Term;
 use itertools::Itertools;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Alternatives {
-    pub(crate) alternatives: Vec<Vec<Term>>,
+    pub alternatives: Vec<Rc<Vec<Term>>>,
 }
 
 impl Alternatives {
@@ -16,7 +17,7 @@ impl Alternatives {
     }
 
     pub fn add_alternative(&mut self, alternative: Vec<Term>) {
-        self.alternatives.push(alternative);
+        self.alternatives.push(Rc::new(alternative));
     }
 
     pub fn merge(&self, other: &Self) -> Self {
@@ -40,7 +41,9 @@ impl Default for Alternatives {
 
 impl From<Vec<Vec<Term>>> for Alternatives {
     fn from(alternatives: Vec<Vec<Term>>) -> Self {
-        Self { alternatives }
+        Self {
+            alternatives: alternatives.into_iter().map(Rc::new).collect(),
+        }
     }
 }
 
