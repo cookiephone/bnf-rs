@@ -324,15 +324,16 @@ impl ExtendedEarleyParser {
             let mut n_states = self.state.state_table[col].len();
             while state_index < n_states {
                 let state = &self.state.state_table[col].states[state_index];
-                match state.at_dot() {
+                let symbol = state.at_dot();
+                match symbol {
                     Some(term) if self.context.grammar.rule_for(term).is_some() => {
                         let term = term.clone();
                         self.state.predict(&self.context, col, state_index, &term);
                     }
-                    Some(Term::Terminal(s)) => {
+                    Some(term) if term.is_terminal() => {
                         let next_col = col + 1;
                         if next_col < n_columns {
-                            let symbol = s.chars().next();
+                            let symbol = term.content.chars().next();
                             self.state.scan(next_col, state_index, symbol);
                         }
                     }

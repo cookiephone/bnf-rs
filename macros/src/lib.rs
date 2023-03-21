@@ -23,7 +23,7 @@ pub fn grammar(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
         // consume the first token, which should correspond to the lhs of the production rule
         let lhs = match tokens.next() {
-            Some(proc_macro::TokenTree::Ident(ident)) => bnf_core::Term::Nonterminal(ident.to_string()),
+            Some(proc_macro::TokenTree::Ident(ident)) => bnf_core::Term::nonterminal(&ident.to_string()),
             Some(tokentree) => {
                 let s = tokentree.to_string();
                 return quote! { std::result::Result::<bnf_core::Grammar, bnf_core::Error>::Err(bnf_core::Error::InvalidGrammarSyntaxError(std::format!("unexpected token encountered: {}", #s).to_owned())) }.into()
@@ -58,7 +58,7 @@ pub fn grammar(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     expect_term = true;
                 },
                 Some(proc_macro::TokenTree::Ident(ident)) => {
-                    alternative.push(bnf_core::Term::Nonterminal(ident.to_string()));
+                    alternative.push(bnf_core::Term::nonterminal(&ident.to_string()));
                     expect_term = false;
                     valid_rule = true;
                 },
@@ -66,7 +66,7 @@ pub fn grammar(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     let mut literal = literal.to_string();
                     literal.pop();
                     literal.remove(0);
-                    alternative.push(bnf_core::Term::Terminal(literal));
+                    alternative.push(bnf_core::Term::terminal(&literal));
                     expect_term = false;
                     valid_rule = true;
                 },

@@ -22,11 +22,18 @@ impl Generator<'_> {
         while self
             .stack
             .last()
-            .map(|term| term.terminal().is_ok())
+            .map(|term| term.terminal_content().is_ok())
             .unwrap_or(false)
         {
-            self.sample
-                .extend(self.stack.pop().unwrap().terminal().unwrap().chars().rev());
+            self.sample.extend(
+                self.stack
+                    .pop()
+                    .unwrap()
+                    .terminal_content()
+                    .unwrap()
+                    .chars()
+                    .rev(),
+            );
         }
     }
 
@@ -84,7 +91,7 @@ impl GenerationStrategy {
                     .rhs
                     .alternatives
                     .iter()
-                    .filter(|terms| terms.iter().all(|term| term.terminal().is_ok()))
+                    .filter(|terms| terms.iter().all(|term| term.terminal_content().is_ok()))
                     .choose(&mut context.rng)
                 {
                     Some(terms) => terms,

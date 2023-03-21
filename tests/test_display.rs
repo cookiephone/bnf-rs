@@ -2,9 +2,9 @@ use bnf::*;
 
 #[test]
 fn test_display_term() {
-    assert_eq!(Term::Terminal("foo".to_owned()).to_string(), "\"foo\"");
+    assert_eq!(Term::terminal("foo").to_string(), "\"foo\"");
     assert_eq!(
-        Term::Terminal("foo\n\t\r\\".to_owned()).to_string(),
+        Term::terminal("foo\n\t\r\\").to_string(),
         "\"foo\\n\\t\\r\\\\\""
     );
 }
@@ -13,15 +13,15 @@ fn test_display_term() {
 fn test_display_alternatives() {
     assert_eq!(
         Alternatives::from(vec![vec![
-            Term::Nonterminal("opt_whitespace".to_string()),
-            Term::Terminal("<".to_string()),
-            Term::Nonterminal("rule_name".to_string()),
-            Term::Terminal(">".to_string()),
-            Term::Nonterminal("opt_whitespace".to_string()),
-            Term::Terminal("::=".to_string()),
-            Term::Nonterminal("opt_whitespace".to_string()),
-            Term::Nonterminal("expression".to_string()),
-            Term::Nonterminal("line_end".to_string()),
+            Term::nonterminal("opt_whitespace"),
+            Term::terminal("<"),
+            Term::nonterminal("rule_name"),
+            Term::terminal(">"),
+            Term::nonterminal("opt_whitespace"),
+            Term::terminal("::="),
+            Term::nonterminal("opt_whitespace"),
+            Term::nonterminal("expression"),
+            Term::nonterminal("line_end"),
         ]]).to_string(),
         "<opt_whitespace> \"<\" <rule_name> \">\" <opt_whitespace> \"::=\" <opt_whitespace> <expression> <line_end>"
     );
@@ -31,17 +31,17 @@ fn test_display_alternatives() {
 fn test_display_rule() {
     assert_eq!(
         Rule {
-            lhs: Term::Nonterminal("rule".to_string()),
+            lhs: Term::nonterminal("rule"),
             rhs: Alternatives::from(vec![vec![
-                Term::Nonterminal("opt_whitespace".to_string()),
-                Term::Terminal("<".to_string()),
-                Term::Nonterminal("rule_name".to_string()),
-                Term::Terminal(">".to_string()),
-                Term::Nonterminal("opt_whitespace".to_string()),
-                Term::Terminal("::=".to_string()),
-                Term::Nonterminal("opt_whitespace".to_string()),
-                Term::Nonterminal("expression".to_string()),
-                Term::Nonterminal("line_end".to_string()),
+                Term::nonterminal("opt_whitespace"),
+                Term::terminal("<"),
+                Term::nonterminal("rule_name"),
+                Term::terminal(">"),
+                Term::nonterminal("opt_whitespace"),
+                Term::terminal("::="),
+                Term::nonterminal("opt_whitespace"),
+                Term::nonterminal("expression"),
+                Term::nonterminal("line_end"),
             ]]),
         }.to_string(),
         "<rule> ::= <opt_whitespace> \"<\" <rule_name> \">\" <opt_whitespace> \"::=\" <opt_whitespace> <expression> <line_end>"
