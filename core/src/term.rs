@@ -1,10 +1,13 @@
 use crate::codify::Codify;
 use crate::error::Error;
+use rustc_hash::FxHasher;
 use std::fmt;
 use std::hash::Hash;
+use std::hash::Hasher;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Term {
+    pub(crate) hash_cache: u64,
     pub(crate) content: String,
     kind: TermKind,
 }
@@ -16,18 +19,31 @@ pub enum TermKind {
 }
 
 impl Term {
+    fn precompute_hash(&mut self) {
+        let mut hasher = FxHasher::default();
+        self.content.hash(&mut hasher);
+        self.kind.hash(&mut hasher);
+        self.hash_cache = hasher.finish();
+    }
+
     pub fn terminal(content: &str) -> Self {
-        Self {
+        let mut term = Self {
+            hash_cache: Default::default(),
             content: content.to_owned(),
             kind: TermKind::Terminal,
-        }
+        };
+        term.precompute_hash();
+        term
     }
 
     pub fn nonterminal(content: &str) -> Self {
-        Self {
+        let mut term = Self {
+            hash_cache: Default::default(),
             content: content.to_owned(),
             kind: TermKind::Nonterminal,
-        }
+        };
+        term.precompute_hash();
+        term
     }
 
     pub fn terminal_content(&self) -> Result<&String, Error> {

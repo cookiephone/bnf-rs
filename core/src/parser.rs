@@ -73,7 +73,7 @@ struct Column {
     symbol: char,
     states: Vec<EarleyState>,
     unique: HashSet<u64, BuildHasherDefault<NoHashHasher<u64>>>,
-    transitive: HashMap<Term, EarleyState, BuildHasherDefault<FxHasher>>,
+    transitive: HashMap<u64, EarleyState, BuildHasherDefault<NoHashHasher<u64>>>,
     hash_builder: BuildHasherDefault<FxHasher>,
 }
 
@@ -89,9 +89,9 @@ impl Column {
     }
 
     fn add_transitive(&mut self, state: &EarleyState) {
-        if !self.transitive.contains_key(&state.lhs) {
-            self.transitive.insert(state.lhs.clone(), state.clone());
-        }
+        self.transitive
+            .entry(state.lhs.hash_cache)
+            .or_insert_with(|| state.clone());
     }
 
     fn add(&mut self, state: EarleyState) {
@@ -116,7 +116,7 @@ impl Column {
 struct ParsingContext {
     grammar: Grammar,
     input: Vec<char>,
-    nullable: HashSet<Term, BuildHasherDefault<FxHasher>>,
+    nullable: HashSet<u64, BuildHasherDefault<NoHashHasher<u64>>>,
 }
 
 impl From<&Grammar> for ParsingContext {
@@ -142,14 +142,14 @@ impl ParsingContext {
         while was_updated {
             was_updated = false;
             for rule in self.grammar.rules.iter() {
-                if !self.nullable.contains(&rule.lhs)
+                if !self.nullable.contains(&rule.lhs.hash_cache)
                     && rule.rhs.alternatives.iter().any(|terms| {
-                        terms
-                            .iter()
-                            .all(|term| term.is_epsilon() || self.nullable.contains(term))
+                        terms.iter().all(|term| {
+                            term.is_epsilon() || self.nullable.contains(&term.hash_cache)
+                        })
                     })
                 {
-                    self.nullable.insert(rule.lhs.clone());
+                    self.nullable.insert(rule.lhs.hash_cache);
                     was_updated = true;
                 }
             }
@@ -184,7 +184,7 @@ impl ParsingState {
                 col,
             ));
         }
-        if context.nullable.contains(nonterminal) {
+        if context.nullable.contains(&nonterminal.hash_cache) {
             let new_state = self.state_table[col].states[state_index].advance();
             self.state_table[col].add(new_state);
         }
@@ -223,7 +223,7 @@ impl ParsingState {
         if let Some(matching_parent) = self.unique_postdot(state) {
             if let Some(transitive_state) = self.state_table[state.start]
                 .transitive
-                .get(&matching_parent.lhs)
+                .get(&matching_parent.lhs.hash_cache)
             {
                 return Some(transitive_state.clone());
             }
@@ -278,7 +278,7 @@ impl ExtendedEarleyParser {
             .context
             .grammar
             .rule_lut
-            .get(&self.context.grammar.start)
+            .get(&self.context.grammar.start.hash_cache)
             .ok_or(Error::EmptyGrammarError(
                 "cannot seed earley state table without initial rule".to_owned(),
             ))

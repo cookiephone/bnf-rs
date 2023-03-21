@@ -9,10 +9,7 @@ fn test_playground_bnf() {
                 lhs: Term::nonterminal("syntax"),
                 rhs: Alternatives::from(vec![
                     vec![Term::nonterminal("rule")],
-                    vec![
-                        Term::nonterminal("rule"),
-                        Term::nonterminal("syntax"),
-                    ],
+                    vec![Term::nonterminal("rule"), Term::nonterminal("syntax")],
                 ]),
             },
             Rule {
@@ -32,10 +29,7 @@ fn test_playground_bnf() {
             Rule {
                 lhs: Term::nonterminal("opt_whitespace"),
                 rhs: Alternatives::from(vec![
-                    vec![
-                        Term::terminal(" "),
-                        Term::nonterminal("opt_whitespace"),
-                    ],
+                    vec![Term::terminal(" "), Term::nonterminal("opt_whitespace")],
                     vec![Term::terminal("")],
                 ]),
             },
@@ -107,20 +101,14 @@ fn test_playground_bnf() {
                 lhs: Term::nonterminal("text1"),
                 rhs: Alternatives::from(vec![
                     vec![Term::terminal("")],
-                    vec![
-                        Term::nonterminal("character1"),
-                        Term::nonterminal("text1"),
-                    ],
+                    vec![Term::nonterminal("character1"), Term::nonterminal("text1")],
                 ]),
             },
             Rule {
                 lhs: Term::nonterminal("text2"),
                 rhs: Alternatives::from(vec![
                     vec![Term::terminal("")],
-                    vec![
-                        Term::nonterminal("character2"),
-                        Term::nonterminal("text2"),
-                    ],
+                    vec![Term::nonterminal("character2"), Term::nonterminal("text2")],
                 ]),
             },
             Rule {
@@ -309,10 +297,7 @@ fn test_playground_int() {
             Rule {
                 lhs: Term::nonterminal("digits"),
                 rhs: Alternatives::from(vec![
-                    vec![
-                        Term::nonterminal("digits"),
-                        Term::nonterminal("digit"),
-                    ],
+                    vec![Term::nonterminal("digits"), Term::nonterminal("digit")],
                     vec![Term::terminal("")],
                 ]),
             },
@@ -339,10 +324,7 @@ fn test_playground_int() {
             },
             Rule {
                 lhs: Term::nonterminal("sign"),
-                rhs: Alternatives::from(vec![
-                    vec![Term::terminal("+")],
-                    vec![Term::terminal("-")],
-                ]),
+                rhs: Alternatives::from(vec![vec![Term::terminal("+")], vec![Term::terminal("-")]]),
             },
         ])
         .build();

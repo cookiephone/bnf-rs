@@ -6,9 +6,9 @@ use crate::parser::ExtendedEarleyParser;
 use crate::rule::Rule;
 use crate::term::Term;
 use itertools::Itertools;
+use nohash_hasher::NoHashHasher;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rustc_hash::FxHasher;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::BuildHasherDefault;
@@ -18,7 +18,7 @@ use std::rc::Rc;
 pub struct Grammar {
     pub(crate) start: Term,
     pub(crate) rules: Vec<Rule>,
-    pub(crate) rule_lut: HashMap<Term, Rule, BuildHasherDefault<FxHasher>>,
+    pub(crate) rule_lut: HashMap<u64, Rule, BuildHasherDefault<NoHashHasher<u64>>>,
 }
 
 impl Grammar {
@@ -64,7 +64,7 @@ impl Grammar {
     }
 
     pub(crate) fn rule_for(&self, term: &Term) -> Option<&Rule> {
-        self.rule_lut.get(term)
+        self.rule_lut.get(&term.hash_cache)
     }
 
     pub fn atomize_terminals(&mut self) {
@@ -171,9 +171,9 @@ impl GrammarBuilder {
     }
 }
 
-fn build_rule_lut(rules: &[Rule]) -> HashMap<Term, Rule, BuildHasherDefault<FxHasher>> {
+fn build_rule_lut(rules: &[Rule]) -> HashMap<u64, Rule, BuildHasherDefault<NoHashHasher<u64>>> {
     rules
         .iter()
-        .map(|rule| (rule.lhs.clone(), rule.clone()))
+        .map(|rule| (rule.lhs.hash_cache, rule.clone()))
         .collect()
 }
