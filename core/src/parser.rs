@@ -172,12 +172,7 @@ impl ParsingState {
         state_index: usize,
         nonterminal: TermKey,
     ) {
-        for alternative in &context
-            .grammar
-            .rule(nonterminal)
-            .rhs
-            .alternatives
-        {
+        for alternative in &context.grammar.rule(nonterminal).rhs.alternatives {
             self.state_table[col].add(EarleyState::new(
                 context.grammar.term(nonterminal).clone(),
                 alternative.clone(),
@@ -330,21 +325,20 @@ impl ExtendedEarleyParser {
                     None => {
                         self.state.leo_complete(col, state_index);
                     }
-                    Some(term) => {
-                        match term.kind {
-                            TermKind::Nonterminal => {
-                                let term = term.clone();
-                                self.state.predict(&self.context, col, state_index, term.key);
-                            }
-                            TermKind::Terminal => {
-                                let next_col = col + 1;
-                                if next_col < n_columns {
-                                    let symbol = term.content.chars().next();
-                                    self.state.scan(next_col, state_index, symbol);
-                                }
+                    Some(term) => match term.kind {
+                        TermKind::Nonterminal => {
+                            let term = term.clone();
+                            self.state
+                                .predict(&self.context, col, state_index, term.key);
+                        }
+                        TermKind::Terminal => {
+                            let next_col = col + 1;
+                            if next_col < n_columns {
+                                let symbol = term.content.chars().next();
+                                self.state.scan(next_col, state_index, symbol);
                             }
                         }
-                    }
+                    },
                 }
                 state_index += 1;
                 n_states = self.state.state_table[col].len();
