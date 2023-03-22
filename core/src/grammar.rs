@@ -5,20 +5,20 @@ use crate::generator::Generator;
 use crate::parser::ExtendedEarleyParser;
 use crate::rule::Rule;
 use crate::term::Term;
+use crate::types::NoHashMap;
+use crate::types::TermKey;
 use itertools::Itertools;
-use nohash_hasher::NoHashHasher;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use std::collections::HashMap;
 use std::fmt;
-use std::hash::BuildHasherDefault;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Grammar {
-    pub(crate) start: Term,
+    pub(crate) start: TermKey,
     pub(crate) rules: Vec<Rule>,
-    pub(crate) rule_lut: HashMap<u64, Rule, BuildHasherDefault<NoHashHasher<u64>>>,
+    pub(crate) rule_lut: NoHashMap<TermKey, Rule>,
+    pub(crate) term_lut: NoHashMap<TermKey, Term>,
 }
 
 impl Grammar {
@@ -63,8 +63,12 @@ impl Grammar {
         ExtendedEarleyParser::recognize(self, input)
     }
 
-    pub(crate) fn rule_for(&self, term: &Term) -> Option<&Rule> {
-        self.rule_lut.get(&term.hash_cache)
+    pub(crate) fn rule(&self, term_key: TermKey) -> &Rule {
+        self.rule_lut.get(&term_key).unwrap()
+    }
+
+    pub(crate) fn term(&self, term_key: TermKey) -> &Term {
+        self.term_lut.get(&term_key).unwrap()
     }
 
     pub fn atomize_terminals(&mut self) {
@@ -81,7 +85,32 @@ impl Grammar {
                 *alternative = Rc::new(tmp);
             }
         }
-        self.rule_lut = build_rule_lut(&self.rules);
+        self.init();
+    }
+
+    fn build_rule_lut(&mut self) {
+        self.rule_lut = self
+            .rules
+            .iter()
+            .map(|rule| (rule.lhs.key, rule.clone()))
+            .collect();
+    }
+
+    fn build_term_lut(&mut self) {
+        self.term_lut =
+            self.rules
+                .iter()
+                .flat_map(|rule| {
+                    rule.rhs.alternatives.iter().flat_map(|alternative| {
+                        alternative.iter().map(|term| (term.key, term.clone()))
+                    })
+                })
+                .collect()
+    }
+
+    fn init(&mut self) {
+        self.build_rule_lut();
+        self.build_term_lut();
     }
 }
 
@@ -128,7 +157,7 @@ impl GrammarBuilder {
 
     pub fn build(mut self) -> Grammar {
         self.collapse();
-        Grammar {
+        let mut grammar = Grammar {
             start: self
                 .rules
                 .first()
@@ -136,10 +165,13 @@ impl GrammarBuilder {
                     "cannot find starting symbol, a grammar requires at least one production rule",
                 )
                 .lhs
-                .clone(),
-            rule_lut: build_rule_lut(&self.rules),
+                .key,
+            rule_lut: Default::default(),
+            term_lut: Default::default(),
             rules: self.rules,
-        }
+        };
+        grammar.init();
+        grammar
     }
 
     fn collapse(&mut self) {
@@ -169,11 +201,4 @@ impl GrammarBuilder {
             .unwrap();
         self.rules.swap(0, idx);
     }
-}
-
-fn build_rule_lut(rules: &[Rule]) -> HashMap<u64, Rule, BuildHasherDefault<NoHashHasher<u64>>> {
-    rules
-        .iter()
-        .map(|rule| (rule.lhs.hash_cache, rule.clone()))
-        .collect()
 }

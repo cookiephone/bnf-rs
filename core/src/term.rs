@@ -1,5 +1,6 @@
 use crate::codify::Codify;
 use crate::error::Error;
+use crate::types::TermKey;
 use rustc_hash::FxHasher;
 use std::fmt;
 use std::hash::Hash;
@@ -7,9 +8,9 @@ use std::hash::Hasher;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Term {
-    pub(crate) hash_cache: u64,
+    pub(crate) key: TermKey,
     pub(crate) content: String,
-    kind: TermKind,
+    pub(crate) kind: TermKind,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -23,12 +24,12 @@ impl Term {
         let mut hasher = FxHasher::default();
         self.content.hash(&mut hasher);
         self.kind.hash(&mut hasher);
-        self.hash_cache = hasher.finish();
+        self.key = hasher.finish();
     }
 
     pub fn terminal(content: &str) -> Self {
         let mut term = Self {
-            hash_cache: Default::default(),
+            key: Default::default(),
             content: content.to_owned(),
             kind: TermKind::Terminal,
         };
@@ -38,7 +39,7 @@ impl Term {
 
     pub fn nonterminal(content: &str) -> Self {
         let mut term = Self {
-            hash_cache: Default::default(),
+            key: Default::default(),
             content: content.to_owned(),
             kind: TermKind::Nonterminal,
         };

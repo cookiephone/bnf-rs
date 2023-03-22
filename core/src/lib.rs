@@ -6,6 +6,7 @@ mod grammar;
 mod parser;
 mod rule;
 mod term;
+mod types;
 pub use alternatives::Alternatives;
 pub use codify::Codify;
 pub use error::Error;

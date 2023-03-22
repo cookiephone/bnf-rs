@@ -1,10 +1,12 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
 use crate::term::Term;
-use nohash_hasher::NoHashHasher;
+use crate::term::TermKind;
+use crate::types::NoHashMap;
+use crate::types::NoHashSet;
+use crate::types::StateKey;
+use crate::types::TermKey;
 use rustc_hash::FxHasher;
-use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt;
 use std::hash::BuildHasher;
 use std::hash::BuildHasherDefault;
@@ -72,8 +74,8 @@ impl fmt::Display for EarleyState {
 struct Column {
     symbol: char,
     states: Vec<EarleyState>,
-    unique: HashSet<u64, BuildHasherDefault<NoHashHasher<u64>>>,
-    transitive: HashMap<u64, EarleyState, BuildHasherDefault<NoHashHasher<u64>>>,
+    unique: NoHashSet<StateKey>,
+    transitive: NoHashMap<StateKey, EarleyState>,
     hash_builder: BuildHasherDefault<FxHasher>,
 }
 
@@ -90,7 +92,7 @@ impl Column {
 
     fn add_transitive(&mut self, state: &EarleyState) {
         self.transitive
-            .entry(state.lhs.hash_cache)
+            .entry(state.lhs.key)
             .or_insert_with(|| state.clone());
     }
 
@@ -116,7 +118,7 @@ impl Column {
 struct ParsingContext {
     grammar: Grammar,
     input: Vec<char>,
-    nullable: HashSet<u64, BuildHasherDefault<NoHashHasher<u64>>>,
+    nullable: NoHashSet<TermKey>,
 }
 
 impl From<&Grammar> for ParsingContext {
@@ -142,14 +144,14 @@ impl ParsingContext {
         while was_updated {
             was_updated = false;
             for rule in self.grammar.rules.iter() {
-                if !self.nullable.contains(&rule.lhs.hash_cache)
+                if !self.nullable.contains(&rule.lhs.key)
                     && rule.rhs.alternatives.iter().any(|terms| {
-                        terms.iter().all(|term| {
-                            term.is_epsilon() || self.nullable.contains(&term.hash_cache)
-                        })
+                        terms
+                            .iter()
+                            .all(|term| term.is_epsilon() || self.nullable.contains(&term.key))
                     })
                 {
-                    self.nullable.insert(rule.lhs.hash_cache);
+                    self.nullable.insert(rule.lhs.key);
                     was_updated = true;
                 }
             }
@@ -168,23 +170,22 @@ impl ParsingState {
         context: &ParsingContext,
         col: usize,
         state_index: usize,
-        nonterminal: &Term,
+        nonterminal: TermKey,
     ) {
         for alternative in &context
             .grammar
-            .rule_for(nonterminal)
-            .unwrap()
+            .rule(nonterminal)
             .rhs
             .alternatives
         {
             self.state_table[col].add(EarleyState::new(
-                nonterminal.clone(),
+                context.grammar.term(nonterminal).clone(),
                 alternative.clone(),
                 0,
                 col,
             ));
         }
-        if context.nullable.contains(&nonterminal.hash_cache) {
+        if context.nullable.contains(&nonterminal) {
             let new_state = self.state_table[col].states[state_index].advance();
             self.state_table[col].add(new_state);
         }
@@ -211,7 +212,7 @@ impl ParsingState {
         let completions = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && *s.at_dot().unwrap() == state.lhs)
+            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs.key)
             .map(|parent| parent.advance())
             .collect::<Vec<EarleyState>>();
         for completion in completions {
@@ -223,7 +224,7 @@ impl ParsingState {
         if let Some(matching_parent) = self.unique_postdot(state) {
             if let Some(transitive_state) = self.state_table[state.start]
                 .transitive
-                .get(&matching_parent.lhs.hash_cache)
+                .get(&matching_parent.lhs.key)
             {
                 return Some(transitive_state.clone());
             }
@@ -239,7 +240,7 @@ impl ParsingState {
         let parents = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && *s.at_dot().unwrap() == state.lhs)
+            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs.key)
             .take(2)
             .collect::<Vec<&EarleyState>>();
         if parents.len() != 1 {
@@ -278,7 +279,7 @@ impl ExtendedEarleyParser {
             .context
             .grammar
             .rule_lut
-            .get(&self.context.grammar.start.hash_cache)
+            .get(&self.context.grammar.start)
             .ok_or(Error::EmptyGrammarError(
                 "cannot seed earley state table without initial rule".to_owned(),
             ))
@@ -286,7 +287,7 @@ impl ExtendedEarleyParser {
         for alternative in &initial_rule.rhs.alternatives {
             self.state.state_table[0].add(EarleyState::new(
                 initial_rule.lhs.clone(),
-                alternative.clone(), //.to_vec(),
+                alternative.clone(),
                 0,
                 0,
             ))
@@ -326,21 +327,24 @@ impl ExtendedEarleyParser {
                 let state = &self.state.state_table[col].states[state_index];
                 let symbol = state.at_dot();
                 match symbol {
-                    Some(term) if self.context.grammar.rule_for(term).is_some() => {
-                        let term = term.clone();
-                        self.state.predict(&self.context, col, state_index, &term);
-                    }
-                    Some(term) if term.is_terminal() => {
-                        let next_col = col + 1;
-                        if next_col < n_columns {
-                            let symbol = term.content.chars().next();
-                            self.state.scan(next_col, state_index, symbol);
-                        }
-                    }
                     None => {
                         self.state.leo_complete(col, state_index);
                     }
-                    other => panic!("encountered nonterminal which does not appear in the left-hand side of any production rule: {:?}", other),
+                    Some(term) => {
+                        match term.kind {
+                            TermKind::Nonterminal => {
+                                let term = term.clone();
+                                self.state.predict(&self.context, col, state_index, term.key);
+                            }
+                            TermKind::Terminal => {
+                                let next_col = col + 1;
+                                if next_col < n_columns {
+                                    let symbol = term.content.chars().next();
+                                    self.state.scan(next_col, state_index, symbol);
+                                }
+                            }
+                        }
+                    }
                 }
                 state_index += 1;
                 n_states = self.state.state_table[col].len();
@@ -359,7 +363,7 @@ impl ExtendedEarleyParser {
             .unwrap()
             .states
             .iter()
-            .any(|state| state.at_dot().is_none() && state.lhs == parser.context.grammar.start)
+            .any(|state| state.at_dot().is_none() && state.lhs.key == parser.context.grammar.start)
     }
 }
 
