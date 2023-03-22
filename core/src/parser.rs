@@ -16,14 +16,14 @@ use std::rc::Rc;
 
 #[derive(Eq, PartialEq, Clone)]
 struct EarleyState {
-    lhs: Term,
+    lhs: TermKey,
     expression: Rc<Vec<Term>>,
     dot: usize,
     start: usize,
 }
 
 impl EarleyState {
-    fn new(lhs: Term, expression: Rc<Vec<Term>>, dot: usize, start: usize) -> Self {
+    fn new(lhs: TermKey, expression: Rc<Vec<Term>>, dot: usize, start: usize) -> Self {
         Self {
             lhs,
             expression,
@@ -34,7 +34,7 @@ impl EarleyState {
 
     fn advance(&self) -> Self {
         Self {
-            lhs: self.lhs.clone(),
+            lhs: self.lhs,
             expression: self.expression.clone(),
             dot: self.dot + 1,
             start: self.start,
@@ -92,7 +92,7 @@ impl Column {
 
     fn add_transitive(&mut self, state: &EarleyState) {
         self.transitive
-            .entry(state.lhs.key)
+            .entry(state.lhs)
             .or_insert_with(|| state.clone());
     }
 
@@ -173,12 +173,7 @@ impl ParsingState {
         nonterminal: TermKey,
     ) {
         for alternative in &context.grammar.rule(nonterminal).rhs.alternatives {
-            self.state_table[col].add(EarleyState::new(
-                context.grammar.term(nonterminal).clone(),
-                alternative.clone(),
-                0,
-                col,
-            ));
+            self.state_table[col].add(EarleyState::new(nonterminal, alternative.clone(), 0, col));
         }
         if context.nullable.contains(&nonterminal) {
             let new_state = self.state_table[col].states[state_index].advance();
@@ -207,7 +202,7 @@ impl ParsingState {
         let completions = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs.key)
+            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
             .map(|parent| parent.advance())
             .collect::<Vec<EarleyState>>();
         for completion in completions {
@@ -219,7 +214,7 @@ impl ParsingState {
         if let Some(matching_parent) = self.unique_postdot(state) {
             if let Some(transitive_state) = self.state_table[state.start]
                 .transitive
-                .get(&matching_parent.lhs.key)
+                .get(&matching_parent.lhs)
             {
                 return Some(transitive_state.clone());
             }
@@ -235,7 +230,7 @@ impl ParsingState {
         let parents = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs.key)
+            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
             .take(2)
             .collect::<Vec<&EarleyState>>();
         if parents.len() != 1 {
@@ -281,7 +276,7 @@ impl ExtendedEarleyParser {
             .unwrap();
         for alternative in &initial_rule.rhs.alternatives {
             self.state.state_table[0].add(EarleyState::new(
-                initial_rule.lhs.clone(),
+                initial_rule.lhs.key,
                 alternative.clone(),
                 0,
                 0,
@@ -357,7 +352,7 @@ impl ExtendedEarleyParser {
             .unwrap()
             .states
             .iter()
-            .any(|state| state.at_dot().is_none() && state.lhs.key == parser.context.grammar.start)
+            .any(|state| state.at_dot().is_none() && state.lhs == parser.context.grammar.start)
     }
 }
 

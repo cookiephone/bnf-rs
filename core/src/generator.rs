@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
 use crate::types::TermKey;
+use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::seq::SliceRandom;
@@ -74,7 +75,7 @@ impl GenerationStrategy {
                     .rhs
                     .alternatives
                     .iter()
-                    .filter(|terms| !terms.contains(&rule.lhs))
+                    .filter(|terms| !terms.iter().map(|term| term.key).contains(&rule.lhs.key))
                     .choose(&mut context.rng)
                 {
                     Some(terms) => terms.iter().map(|term| term.key),

@@ -2,10 +2,11 @@ use crate::alternatives::Alternatives;
 use crate::codify::Codify;
 use crate::term::Term;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rule {
-    pub lhs: Term,
+    pub lhs: Rc<Term>,
     pub rhs: Alternatives,
 }
 
@@ -27,7 +28,7 @@ impl fmt::Display for Rule {
 impl Codify for Rule {
     fn codify(&self, prefix: &str) -> String {
         format!(
-            "    {prefix}Rule {{\n        lhs: {},\n        rhs: {}\n    }}",
+            "    {prefix}Rule {{\n        lhs: std::rc::Rc::new({}),\n        rhs: {}\n    }}",
             self.lhs.codify(prefix),
             self.rhs.codify(prefix)
         )

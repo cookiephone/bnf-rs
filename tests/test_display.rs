@@ -31,7 +31,7 @@ fn test_display_alternatives() {
 fn test_display_rule() {
     assert_eq!(
         Rule {
-            lhs: Term::nonterminal("rule"),
+            lhs: std::rc::Rc::new(Term::nonterminal("rule")),
             rhs: Alternatives::from(vec![vec![
                 Term::nonterminal("opt_whitespace"),
                 Term::terminal("<"),

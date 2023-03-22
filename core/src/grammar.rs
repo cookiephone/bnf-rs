@@ -130,7 +130,7 @@ impl fmt::Display for Grammar {
 
 impl Codify for Grammar {
     fn codify(&self, prefix: &str) -> String {
-        let mut s = format!("{prefix}Grammar::builder().rules(&vec![\n");
+        let mut s = format!("{prefix}Grammar::builder().rules(&[\n");
         for rule in self.rules.iter() {
             s.push_str(&format!("{},\n", rule.codify(prefix)));
         }
