@@ -376,7 +376,11 @@ impl ExtendedEarleyParser {
             .unwrap()
             .states
             .iter()
-            .any(|state| state.at_dot().is_none() && state.lhs == self.context.grammar.start)
+            .any(|state| {
+                state.start == 0
+                    && state.at_dot().is_none()
+                    && state.lhs == self.context.grammar.start
+            })
     }
 }
 
