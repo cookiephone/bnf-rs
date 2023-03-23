@@ -339,7 +339,7 @@ impl ExtendedEarleyParser {
         }
     }
 
-    pub fn dump(&self) -> String {
+    pub fn dump_state(&self) -> String {
         let mut s = String::new();
         s.push_str("============================================\n");
         s.push_str("state table\n");
