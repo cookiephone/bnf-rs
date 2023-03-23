@@ -242,6 +242,52 @@ impl ParsingState {
         }
         None
     }
+
+    fn chart_parse(&mut self, context: &ParsingContext) {
+        let n_columns = self.state_table.len();
+        for col in 0..n_columns {
+            self.chart_parse_column_step(context, col);
+        }
+    }
+
+    fn chart_parse_column_step(&mut self, context: &ParsingContext, col: usize) {
+        let mut state_index = 0;
+        let mut n_states = self.state_table[col].len();
+        while state_index < n_states {
+            self.chart_parse_state_step(context, &mut state_index, &mut n_states, col);
+        }
+    }
+
+    fn chart_parse_state_step(
+        &mut self,
+        context: &ParsingContext,
+        state_index: &mut usize,
+        n_states: &mut usize,
+        col: usize,
+    ) {
+        let state = &self.state_table[col].states[*state_index];
+        let symbol = state.at_dot();
+        match symbol {
+            None => {
+                self.leo_complete(col, *state_index);
+            }
+            Some(term) => match term.kind {
+                TermKind::Nonterminal => {
+                    let term = term.clone();
+                    self.predict(context, col, *state_index, term.key);
+                }
+                TermKind::Terminal => {
+                    let next_col = col + 1;
+                    if next_col < self.state_table.len() {
+                        let symbol = term.content.chars().next();
+                        self.scan(next_col, *state_index, symbol);
+                    }
+                }
+            },
+        }
+        *state_index += 1;
+        *n_states = self.state_table[col].len();
+    }
 }
 
 pub struct ExtendedEarleyParser {
@@ -309,36 +355,7 @@ impl ExtendedEarleyParser {
     }
 
     fn chart_parse(&mut self) {
-        let n_columns = self.state.state_table.len();
-        for col in 0..n_columns {
-            let mut state_index = 0;
-            let mut n_states = self.state.state_table[col].len();
-            while state_index < n_states {
-                let state = &self.state.state_table[col].states[state_index];
-                let symbol = state.at_dot();
-                match symbol {
-                    None => {
-                        self.state.leo_complete(col, state_index);
-                    }
-                    Some(term) => match term.kind {
-                        TermKind::Nonterminal => {
-                            let term = term.clone();
-                            self.state
-                                .predict(&self.context, col, state_index, term.key);
-                        }
-                        TermKind::Terminal => {
-                            let next_col = col + 1;
-                            if next_col < n_columns {
-                                let symbol = term.content.chars().next();
-                                self.state.scan(next_col, state_index, symbol);
-                            }
-                        }
-                    },
-                }
-                state_index += 1;
-                n_states = self.state.state_table[col].len();
-            }
-        }
+        self.state.chart_parse(&self.context);
     }
 
     pub fn recognize(grammar: &Grammar, input: &str) -> bool {
