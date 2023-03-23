@@ -71,7 +71,7 @@ impl Grammar {
         self.term_lut.get(&term_key).unwrap()
     }
 
-    pub fn atomize_terminals(&mut self) {
+    pub(crate) fn atomize_terminals(&mut self) {
         for rule in self.rules.iter_mut() {
             for alternative in rule.rhs.alternatives.iter_mut() {
                 let mut tmp = Vec::new();

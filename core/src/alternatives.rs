@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Alternatives {
-    pub alternatives: Vec<Rc<Vec<Term>>>,
+    pub(crate) alternatives: Vec<Rc<Vec<Term>>>,
 }
 
 impl Alternatives {
