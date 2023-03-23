@@ -51,7 +51,7 @@ fn test_display_rule() {
 #[test]
 fn test_display_grammar() {
     assert_eq!(
-        playground::grammar_bnf().to_string(),
+        corpus::grammar_bnf().to_string(),
         "<syntax> ::= <rule> | <rule> <syntax>\n\
         <character2> ::= <character> | \"\\\"\"\n\
         <character> ::= <letter> | <digit> | <symbol>\n\

@@ -34,7 +34,7 @@ fn bench(c: &mut Criterion) {
     bench_generator(
         &mut group,
         (
-            bnf::playground::grammar_bnf(),
+            bnf::corpus::grammar_bnf(),
             GenerationStrategy::UniformRHSSampling,
         ),
     );

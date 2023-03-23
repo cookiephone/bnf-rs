@@ -2,7 +2,7 @@ use bnf::*;
 
 #[test]
 fn test_playground_bnf() {
-    let grammar = playground::grammar_bnf();
+    let grammar = corpus::grammar_bnf();
     let correct = Grammar::builder()
         .rules(&vec![
             Rule {
@@ -273,7 +273,7 @@ fn test_playground_bnf() {
 
 #[test]
 fn test_playground_int() {
-    let grammar = playground::grammar_int();
+    let grammar = corpus::grammar_int();
     let correct = Grammar::builder()
         .rules(&[
             Rule {

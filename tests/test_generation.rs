@@ -2,7 +2,7 @@ use bnf::*;
 
 #[test]
 fn test_generation_generate() {
-    let grammar = playground::grammar_bnf();
+    let grammar = corpus::grammar_bnf();
     for _ in 0..100 {
         let word = grammar.generate().unwrap();
         assert!(grammar.recognize(word.as_str()));
@@ -11,7 +11,7 @@ fn test_generation_generate() {
 
 #[test]
 fn test_generation_generate_parameterized() {
-    let grammar = playground::grammar_bnf();
+    let grammar = corpus::grammar_bnf();
     for seed in 0..100 {
         for strategy in &[
             GenerationStrategy::UniformRHSSampling,
