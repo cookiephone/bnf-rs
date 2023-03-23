@@ -60,7 +60,8 @@ impl Grammar {
     }
 
     pub fn recognize(&self, input: &str) -> bool {
-        ExtendedEarleyParser::recognize(self, input)
+        let mut parser = ExtendedEarleyParser::from(self);
+        parser.recognize(input)
     }
 
     pub(crate) fn rule(&self, term_key: TermKey) -> &Rule {

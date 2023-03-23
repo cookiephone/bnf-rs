@@ -165,6 +165,14 @@ struct ParsingState {
 }
 
 impl ParsingState {
+    fn insert(&mut self, col: usize, state: EarleyState) {
+        self.state_table[col].add(state);
+    }
+
+    fn get(&self, col: usize, state_index: usize) -> &EarleyState {
+        &self.state_table[col].states[state_index]
+    }
+
     fn predict(
         &mut self,
         context: &ParsingContext,
@@ -173,40 +181,41 @@ impl ParsingState {
         nonterminal: TermKey,
     ) {
         for alternative in &context.grammar.rule(nonterminal).rhs.alternatives {
-            self.state_table[col].add(EarleyState::new(nonterminal, alternative.clone(), 0, col));
+            let new_state = EarleyState::new(nonterminal, alternative.clone(), 0, col);
+            self.insert(col, new_state);
         }
         if context.nullable.contains(&nonterminal) {
-            let new_state = self.state_table[col].states[state_index].advance();
-            self.state_table[col].add(new_state);
+            let new_state = self.get(col, state_index).advance();
+            self.insert(col, new_state);
         }
     }
 
     fn scan(&mut self, col: usize, state_index: usize, symbol_opt: Option<char>) {
         if symbol_opt.is_none() || self.state_table[col].symbol == symbol_opt.unwrap() {
-            let new_state = self.state_table[col - 1].states[state_index].advance();
-            self.state_table[col].add(new_state);
+            let new_state = self.get(col - 1, state_index).advance();
+            self.insert(col, new_state);
         }
     }
 
     fn leo_complete(&mut self, col: usize, state_index: usize) {
-        let state = self.state_table[col].states[state_index].clone();
+        let state = self.get(col, state_index).clone();
         if let Some(topmost) = self.deterministic_reduction(&state) {
-            self.state_table[col].add(topmost);
+            self.insert(col, topmost);
         } else {
             self.earley_complete(col, state_index);
         }
     }
 
     fn earley_complete(&mut self, col: usize, state_index: usize) {
-        let state = &self.state_table[col].states[state_index];
+        let state = self.get(col, state_index);
         let completions = self.state_table[state.start]
             .states
             .iter()
             .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
             .map(|parent| parent.advance())
             .collect::<Vec<EarleyState>>();
-        for completion in completions {
-            self.state_table[col].add(completion);
+        for new_state in completions {
+            self.insert(col, new_state);
         }
     }
 
@@ -358,18 +367,16 @@ impl ExtendedEarleyParser {
         self.state.chart_parse(&self.context);
     }
 
-    pub fn recognize(grammar: &Grammar, input: &str) -> bool {
-        let mut parser = Self::from(grammar);
-        parser.init_input(input);
-        parser.chart_parse();
-        parser
-            .state
+    pub fn recognize(&mut self, input: &str) -> bool {
+        self.init_input(input);
+        self.chart_parse();
+        self.state
             .state_table
             .last()
             .unwrap()
             .states
             .iter()
-            .any(|state| state.at_dot().is_none() && state.lhs == parser.context.grammar.start)
+            .any(|state| state.at_dot().is_none() && state.lhs == self.context.grammar.start)
     }
 }
 
