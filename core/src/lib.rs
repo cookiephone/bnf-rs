@@ -5,6 +5,7 @@ mod generator;
 mod grammar;
 mod parser;
 mod rule;
+mod sppf;
 mod term;
 mod types;
 pub use alternatives::Alternatives;

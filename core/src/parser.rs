@@ -15,11 +15,11 @@ use std::hash::Hasher;
 use std::rc::Rc;
 
 #[derive(Eq, PartialEq, Clone)]
-struct EarleyState {
-    lhs: TermKey,
-    expression: Rc<Vec<Term>>,
-    dot: usize,
-    start: usize,
+pub(crate) struct EarleyState {
+    pub(crate) lhs: TermKey,
+    pub(crate) expression: Rc<Vec<Term>>,
+    pub(crate) dot: usize,
+    pub(crate) start: usize,
 }
 
 impl EarleyState {
@@ -41,7 +41,7 @@ impl EarleyState {
         }
     }
 
-    fn at_dot(&self) -> Option<&Term> {
+    pub(crate) fn at_dot(&self) -> Option<&Term> {
         self.expression.get(self.dot)
     }
 }
@@ -160,7 +160,7 @@ impl ParsingContext {
 }
 
 #[derive(Default)]
-struct ParsingState {
+pub(crate) struct ParsingState {
     state_table: Vec<Column>,
 }
 
