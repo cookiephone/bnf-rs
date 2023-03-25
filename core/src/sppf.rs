@@ -53,7 +53,7 @@ impl PartialEq for SPPFNodeItem {
 impl Eq for SPPFNodeItem {}
 
 #[derive(Clone)]
-struct SPPFNodeLabel {
+pub(crate) struct SPPFNodeLabel {
     item: SPPFNodeItem,
     start: usize,
     end: usize,
@@ -75,7 +75,7 @@ impl SPPFNodeLabel {
         Self { item, start, end }
     }
 
-    fn null() -> Self {
+    pub(crate) fn null() -> Self {
         Self {
             item: SPPFNodeItem::Null,
             start: Default::default(),
@@ -100,7 +100,7 @@ impl PartialEq for SPPFNodeLabel {
 
 impl Eq for SPPFNodeLabel {}
 
-struct SPPFNode {
+pub(crate) struct SPPFNode {
     label: SPPFNodeLabel,
     children: FxHashSet<SPPFNode>,
 }
@@ -137,13 +137,19 @@ impl PartialEq for SPPFNode {
 
 impl Eq for SPPFNode {}
 
-struct SPPF {
+#[derive(Default)]
+pub(crate) struct SPPF {
     nodes: FxHashMap<SPPFNodeLabel, SPPFNode>,
 }
 
 impl SPPF {
     fn insert(&mut self, label: SPPFNodeLabel) -> &mut SPPFNode {
         self.nodes.entry(label.clone()).or_insert(label.into())
+    }
+
+    pub(crate) fn insert_from_state(&mut self, state: &EarleyState, end: usize) -> &mut SPPFNode {
+        let label = SPPFNodeLabel::from_state(state, end);
+        self.insert(label)
     }
 
     fn get_node(&self, label: &SPPFNodeLabel) -> Option<&SPPFNode> {

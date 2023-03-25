@@ -1,5 +1,7 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
+use crate::sppf::SPPFNodeLabel;
+use crate::sppf::SPPF;
 use crate::term::Term;
 use crate::term::TermKind;
 use crate::types::NoHashMap;
@@ -14,12 +16,13 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::rc::Rc;
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Clone)]
 pub(crate) struct EarleyState {
     pub(crate) lhs: TermKey,
     pub(crate) expression: Rc<Vec<Term>>,
     pub(crate) dot: usize,
     pub(crate) start: usize,
+    pub(crate) sppf_node: SPPFNodeLabel,
 }
 
 impl EarleyState {
@@ -29,6 +32,7 @@ impl EarleyState {
             expression,
             dot,
             start,
+            sppf_node: SPPFNodeLabel::null(),
         }
     }
 
@@ -38,6 +42,7 @@ impl EarleyState {
             expression: self.expression.clone(),
             dot: self.dot + 1,
             start: self.start,
+            sppf_node: SPPFNodeLabel::null(),
         }
     }
 
@@ -54,6 +59,17 @@ impl Hash for EarleyState {
         self.start.hash(state);
     }
 }
+
+impl PartialEq for EarleyState {
+    fn eq(&self, other: &Self) -> bool {
+        self.lhs == other.lhs
+            && self.expression.as_ptr() == other.expression.as_ptr()
+            && self.dot == other.dot
+            && self.start == other.start
+    }
+}
+
+impl Eq for EarleyState {}
 
 impl fmt::Display for EarleyState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -162,11 +178,22 @@ impl ParsingContext {
 #[derive(Default)]
 pub(crate) struct ParsingState {
     state_table: Vec<Column>,
+    sppf: SPPF,
 }
 
 impl ParsingState {
     fn insert(&mut self, col: usize, state: EarleyState) {
         self.state_table[col].add(state);
+    }
+
+    fn insert_completion(&mut self, col: usize, state: EarleyState) {
+        // TODO: (SPPF) make new_node from new_state
+        // TODO: (SPPF) point new_state to new_node
+        self.insert(col, state);
+    }
+
+    fn sppf_insert(&mut self, end: usize, state: &EarleyState) {
+        self.sppf.insert_from_state(state, end);
     }
 
     fn get(&self, col: usize, state_index: usize) -> &EarleyState {
@@ -186,6 +213,8 @@ impl ParsingState {
         }
         if context.nullable.contains(&nonterminal) {
             let new_state = self.get(col, state_index).advance();
+            // TODO: (SPPF) make new_node from new state
+            // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
     }
@@ -193,14 +222,18 @@ impl ParsingState {
     fn scan(&mut self, col: usize, state_index: usize, symbol_opt: Option<char>) {
         if symbol_opt.is_none() || self.state_table[col].symbol == symbol_opt.unwrap() {
             let new_state = self.get(col - 1, state_index).advance();
+            // TODO: (SPPF) make new_node from new state
+            // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
     }
 
     fn leo_complete(&mut self, col: usize, state_index: usize) {
         let state = self.get(col, state_index).clone();
+        // TODO: (SPPF) add new node (lhs, col, col) to sppf if state points to null node
+        // TODO: (SPPF) point state to new node in that case
         if let Some(topmost) = self.deterministic_reduction(&state) {
-            self.insert(col, topmost);
+            self.insert_completion(col, topmost);
         } else {
             self.earley_complete(col, state_index);
         }
@@ -215,7 +248,7 @@ impl ParsingState {
             .map(|parent| parent.advance())
             .collect::<Vec<EarleyState>>();
         for new_state in completions {
-            self.insert(col, new_state);
+            self.insert_completion(col, new_state);
         }
     }
 
@@ -263,6 +296,7 @@ impl ParsingState {
         let mut state_index = 0;
         let mut n_states = self.state_table[col].len();
         while state_index < n_states {
+            // TODO: (SPPF) add node (self.state_table[col].symbol, col, col + 1) to sppf
             self.chart_parse_state_step(context, &mut state_index, &mut n_states, col);
         }
     }

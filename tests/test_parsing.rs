@@ -10,3 +10,17 @@ fn test_parsing_recognize() {
         assert!(grammar.recognize(word.as_str()));
     }
 }
+
+#[test]
+fn test_parsing_sppf() {
+    // yes this grammar is nonsense but it's an example from the paper (doi:10.1016/j.entcs.2008.03.044)
+    let grammar = grammar! {
+        S = A T | "a" T
+        A = "a" | B A
+        B = ""
+        T = "b" "b" "b"
+    }
+    .unwrap();
+    let word = "abbb";
+    assert!(grammar.recognize(word));
+}
