@@ -178,7 +178,7 @@ impl ParsingContext {
 #[derive(Default)]
 pub(crate) struct ParsingState {
     state_table: Vec<Column>,
-    nullable_node_memo: FxHashMap<TermKey, SppfNodeLabel>, // TODO: move into an SPPF context later
+    //nullable_node_memo: FxHashMap<TermKey, SppfNodeLabel>, // TODO: move into an SPPF context later
     current_terminal_node: SppfNodeLabel,                  // TODO: move into an SPPF context later
 }
 
@@ -284,10 +284,10 @@ impl ParsingState {
             let state_mut = self.get_mut(col, state_index);
             state_mut.sppf_node = node.label.clone();
         }
-        if state.start == col {
-            self.nullable_node_memo
-                .insert(state.lhs, state.sppf_node.clone());
-        }
+        /*if state.start == col {
+            println!("ADD TO HSET!");
+            self.nullable_node_memo.insert(state.lhs, state.sppf_node.clone());
+        }*/
         // TODO: (SPPF) point state to new node in that case
         if let (Some(topmost), parent_node) = self.deterministic_reduction(&state) {
             self.insert_completion(sppf, col, topmost, parent_node, state.sppf_node);
@@ -347,7 +347,6 @@ impl ParsingState {
         let n_columns = self.state_table.len();
         for col in 0..n_columns {
             self.chart_parse_column_step(sppf, context, col);
-            println!("{}", sppf.dump_dot(context));
         }
     }
 
@@ -375,7 +374,7 @@ impl ParsingState {
         n_states: &mut usize,
         col: usize,
     ) {
-        self.nullable_node_memo.clear();
+        //self.nullable_node_memo.clear();
         let state = &self.state_table[col].states[*state_index];
         let symbol = state.at_dot();
         match symbol {
@@ -473,6 +472,7 @@ impl ExtendedEarleyParser {
     pub fn recognize(&mut self, input: &str) -> bool {
         self.init_input(input);
         self.chart_parse();
+        println!("{}", self.sppf.dump_dot(&self.context));
         self.state
             .state_table
             .last()

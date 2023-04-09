@@ -216,15 +216,15 @@ impl Sppf {
     pub(crate) fn make_node(&mut self, state: &EarleyState, end: usize, w: SppfNodeLabel, v: SppfNodeLabel) -> &mut SppfNode {
         let is_finished = state.at_dot().is_none();
         if state.dot <= 1 && !is_finished {
-            return self.get_node_mut(&v)
+            return self.get_node_mut(&v);
         }
         let item = match is_finished {
-            true => SppfNodeItem::LR0Item {
+            false => SppfNodeItem::LR0Item {
                 lhs: state.lhs,
                 rhs: state.expression.clone(),
                 dot: state.dot,
             },
-            false => SppfNodeItem::Symbol(state.lhs),
+            true => SppfNodeItem::Symbol(state.lhs),
         };
         let label = SppfNodeLabel { item, start: state.start, end };
         let node = self.insert(label);
@@ -234,10 +234,6 @@ impl Sppf {
             node.add_binary_family(w, v);
         }
         node
-    }
-
-    pub(crate) fn get_node(&self, label: &SppfNodeLabel) -> &SppfNode {
-        self.nodes.get(label).unwrap()
     }
 
     fn get_node_mut(&mut self, label: &SppfNodeLabel) -> &mut SppfNode {
