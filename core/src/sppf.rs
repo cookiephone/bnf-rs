@@ -90,22 +90,6 @@ pub(crate) struct SppfNodeLabel {
 }
 
 impl SppfNodeLabel {
-    fn from_state(state: &EarleyState, end: usize) -> Self {
-        let start = state.start;
-        let item = match state.dot {
-            0 | 1 => SppfNodeItem::Null,
-            _ => match state.at_dot() {
-                Some(_) => SppfNodeItem::LR0Item {
-                    lhs: state.lhs,
-                    rhs: state.expression.clone(),
-                    dot: state.dot,
-                },
-                None => SppfNodeItem::Symbol(state.lhs),
-            },
-        };
-        Self { item, start, end }
-    }
-
     pub(crate) fn epsilon() -> Self {
         Self {
             item: SppfNodeItem::Epsilon,
@@ -131,6 +115,12 @@ impl SppfNodeLabel {
             SppfNodeItem::Null | SppfNodeItem::Epsilon => self.item.dump_str(context),
             _ => format!("{} [{}, {}]", self.item.dump_str(context), self.start, self.end),
         }
+    }
+}
+
+impl Default for SppfNodeLabel {
+    fn default() -> Self {
+        Self::null()
     }
 }
 
@@ -161,12 +151,16 @@ impl Eq for SppfNodeLabel {}
 
 pub(crate) struct SppfNode {
     pub(crate) label: SppfNodeLabel,
-    children: FxHashSet<SppfNodeLabel>,
+    families: FxHashSet<(SppfNodeLabel, SppfNodeLabel)>,
 }
 
 impl SppfNode {
-    pub(crate) fn add_child(&mut self, child: SppfNodeLabel) {
-        self.children.insert(child);
+    pub(crate) fn add_unary_family(&mut self, member: SppfNodeLabel) {
+        self.families.insert((member, SppfNodeLabel::null()));
+    }
+
+    pub(crate) fn add_binary_family(&mut self, member_1: SppfNodeLabel, member_2: SppfNodeLabel) {
+        self.families.insert((member_1, member_2));
     }
 }
 
@@ -174,7 +168,7 @@ impl From<SppfNodeLabel> for SppfNode {
     fn from(label: SppfNodeLabel) -> Self {
         Self {
             label,
-            children: Default::default(),
+            families: Default::default(),
         }
     }
 }
@@ -219,23 +213,54 @@ impl Sppf {
         self.insert(label)
     }
 
-    pub(crate) fn insert_from_state(&mut self, state: &EarleyState, end: usize) -> &mut SppfNode {
-        let label = SppfNodeLabel::from_state(state, end);
-        self.insert(label)
+    pub(crate) fn make_node(&mut self, state: &EarleyState, end: usize, w: SppfNodeLabel, v: SppfNodeLabel) -> &mut SppfNode {
+        let is_finished = state.at_dot().is_none();
+        if state.dot <= 1 && !is_finished {
+            return self.get_node_mut(&v)
+        }
+        let item = match is_finished {
+            true => SppfNodeItem::LR0Item {
+                lhs: state.lhs,
+                rhs: state.expression.clone(),
+                dot: state.dot,
+            },
+            false => SppfNodeItem::Symbol(state.lhs),
+        };
+        let label = SppfNodeLabel { item, start: state.start, end };
+        let node = self.insert(label);
+        if w.is_null() {
+            node.add_unary_family(v);
+        } else {
+            node.add_binary_family(w, v);
+        }
+        node
     }
 
     pub(crate) fn get_node(&self, label: &SppfNodeLabel) -> &SppfNode {
         self.nodes.get(label).unwrap()
     }
 
+    fn get_node_mut(&mut self, label: &SppfNodeLabel) -> &mut SppfNode {
+        self.nodes.get_mut(label).unwrap()
+    }
+
     pub(crate) fn dump_dot(&self, context: &ParsingContext) -> String {
         let mut dot = String::new();
         let mut edges = String::new();
+        let mut i: usize = 0;
         dot.push_str("digraph FPPS {\n");
         for parent in self.nodes.values() {
             dot.push_str(&format!("    \"{}\";\n", parent.label.dump_str(context)));
-            for child_label in &parent.children {
-                edges.push_str(&format!("    \"{}\" -> \"{}\";\n", parent.label.dump_str(context), child_label.dump_str(context)));
+            for (member_1, member_2) in &parent.families {
+                if member_2.is_null() {
+                    edges.push_str(&format!("    \"{}\" -> \"{}\";\n", parent.label.dump_str(context), member_1.dump_str(context)));
+                } else {
+                    dot.push_str(&format!("    {i} [shape=point];\n"));
+                    edges.push_str(&format!("    \"{}\" -> \"{i}\" [dir=none];\n", parent.label.dump_str(context)));
+                    edges.push_str(&format!("    \"{i}\" -> \"{}\";\n", member_1.dump_str(context)));
+                    edges.push_str(&format!("    \"{i}\" -> \"{}\";\n", member_2.dump_str(context)));
+                    i += 1;
+                }
             }
         }
         dot.push_str(&edges);

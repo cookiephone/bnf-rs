@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
-use crate::sppf::SppfNodeLabel;
 use crate::sppf::Sppf;
+use crate::sppf::SppfNodeLabel;
 use crate::term::Term;
 use crate::term::TermKind;
 use crate::types::FxHashMap;
@@ -178,7 +178,8 @@ impl ParsingContext {
 #[derive(Default)]
 pub(crate) struct ParsingState {
     state_table: Vec<Column>,
-    nullable_node_memo: FxHashMap<TermKey, SppfNodeLabel>,
+    nullable_node_memo: FxHashMap<TermKey, SppfNodeLabel>, // TODO: move into an SPPF context later
+    current_terminal_node: SppfNodeLabel,                  // TODO: move into an SPPF context later
 }
 
 impl ParsingState {
@@ -186,9 +187,16 @@ impl ParsingState {
         self.state_table[col].add(state);
     }
 
-    fn insert_completion(&mut self, sppf: &mut Sppf, col: usize, mut state: EarleyState) {
+    fn insert_completion(
+        &mut self,
+        sppf: &mut Sppf,
+        col: usize,
+        mut state: EarleyState,
+        parent_node: SppfNodeLabel,
+        completed_node: SppfNodeLabel,
+    ) {
         // TODO: (SPPF) make new_node from new_state
-        let node = sppf.insert_from_state(&state, col);
+        let node = sppf.make_node(&state, col, parent_node, completed_node);
         state.sppf_node = node.label.clone();
         // TODO: (SPPF) point new_state to new_node
         self.insert(col, state);
@@ -202,7 +210,7 @@ impl ParsingState {
         &mut self.state_table[col].states[state_index]
     }
 
-    fn predict2(
+    /*fn predict2(
         &mut self,
         sppf: &mut Sppf,
         context: &ParsingContext,
@@ -222,12 +230,12 @@ impl ParsingState {
             let new_node = sppf.insert_from_state(&new_state, col);
             new_state.sppf_node = new_node.label.clone();
             if !node_label.is_null() {
-                new_node.add_child(node_label);
+                new_node.add_unary_family(node_label);
             }
             // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
-    }
+    }*/
 
     fn predict(
         &mut self,
@@ -248,24 +256,20 @@ impl ParsingState {
         }
     }
 
-    fn make_nullable_prediction_nodes(&mut self, nonterminal: TermKey) -> Option<SppfNodeLabel> {
+    /*fn make_nullable_prediction_nodes(&mut self, nonterminal: TermKey) -> Option<SppfNodeLabel> {
         if let Some(label) = self.nullable_node_memo.get(&nonterminal) {
             // TODO (issue: nonterminal for prediction shoul have a value in H set when it does not during testing...)
         }
         None
-    }
+    }*/
 
     fn scan(&mut self, sppf: &mut Sppf, col: usize, state_index: usize, symbol_opt: Option<char>) {
         if symbol_opt.is_none() || self.state_table[col].symbol == symbol_opt.unwrap() {
             let state = self.get(col - 1, state_index);
-            let node_label = sppf.get_node(&state.sppf_node).label.clone();
             let mut new_state = state.advance();
             // TODO: (SPPF) make new_node from new state
-            let new_node = sppf.insert_from_state(&new_state, col);
+            let new_node = sppf.make_node(&new_state, col - 1, state.sppf_node.clone(), self.current_terminal_node.clone());
             new_state.sppf_node = new_node.label.clone();
-            if !node_label.is_null() {
-                new_node.add_child(node_label);
-            }
             // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
@@ -276,16 +280,17 @@ impl ParsingState {
         // TODO: (SPPF) add new node (lhs, col, col) to sppf if state points to null node
         if state.sppf_node.is_null() {
             let node = sppf.insert_from_symbol(state.lhs, col, col);
-            node.add_child(SppfNodeLabel::epsilon());
+            node.add_unary_family(SppfNodeLabel::epsilon());
             let state_mut = self.get_mut(col, state_index);
             state_mut.sppf_node = node.label.clone();
         }
         if state.start == col {
-            self.nullable_node_memo.insert(state.lhs, state.sppf_node.clone());
+            self.nullable_node_memo
+                .insert(state.lhs, state.sppf_node.clone());
         }
         // TODO: (SPPF) point state to new node in that case
-        if let Some(topmost) = self.deterministic_reduction(&state) {
-            self.insert_completion(sppf, col, topmost);
+        if let (Some(topmost), parent_node) = self.deterministic_reduction(&state) {
+            self.insert_completion(sppf, col, topmost, parent_node, state.sppf_node);
         } else {
             self.earley_complete(sppf, col, state_index);
         }
@@ -293,31 +298,32 @@ impl ParsingState {
 
     fn earley_complete(&mut self, sppf: &mut Sppf, col: usize, state_index: usize) {
         let state = self.get(col, state_index);
+        let completed_node = state.sppf_node.clone();
         let completions = self.state_table[state.start]
             .states
             .iter()
             .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
-            .map(|parent| parent.advance())
-            .collect::<Vec<EarleyState>>();
-        for new_state in completions {
-            self.insert_completion(sppf, col, new_state);
+            .map(|parent| (parent.advance(), parent.sppf_node.clone()))
+            .collect::<Vec<(EarleyState, SppfNodeLabel)>>();
+        for (new_state, parent_node) in completions {
+            self.insert_completion(sppf, col, new_state, parent_node, completed_node.clone());
         }
     }
 
-    fn deterministic_reduction(&mut self, state: &EarleyState) -> Option<EarleyState> {
+    fn deterministic_reduction(&mut self, state: &EarleyState) -> (Option<EarleyState>, SppfNodeLabel) {
         if let Some(matching_parent) = self.unique_postdot(state) {
             if let Some(transitive_state) = self.state_table[state.start]
                 .transitive
                 .get(&matching_parent.lhs)
             {
-                return Some(transitive_state.clone());
+                return (Some(transitive_state.clone()), matching_parent.sppf_node);
             }
             let candidate = matching_parent.advance();
-            let topmost = self.deterministic_reduction(&candidate).or(Some(candidate));
+            let topmost = self.deterministic_reduction(&candidate).0.or(Some(candidate));
             self.state_table[matching_parent.start].add_transitive(topmost.as_ref().unwrap());
-            return topmost;
+            return (topmost, matching_parent.sppf_node);
         }
-        None
+        (None, SppfNodeLabel::null())
     }
 
     fn unique_postdot(&mut self, state: &EarleyState) -> Option<EarleyState> {
@@ -341,6 +347,7 @@ impl ParsingState {
         let n_columns = self.state_table.len();
         for col in 0..n_columns {
             self.chart_parse_column_step(sppf, context, col);
+            println!("{}", sppf.dump_dot(context));
         }
     }
 
@@ -352,7 +359,8 @@ impl ParsingState {
             if col > 0 {
                 let symbol = self.state_table[col].symbol;
                 let symbol_key = Term::terminal(&symbol.to_string()).key;
-                sppf.insert_from_symbol(symbol_key, col, col + 1);
+                let node = sppf.insert_from_symbol(symbol_key, col - 1, col);
+                self.current_terminal_node = node.label.clone();
             }
             // TODO: that's it
             self.chart_parse_state_step(sppf, context, &mut state_index, &mut n_states, col);
@@ -459,13 +467,12 @@ impl ExtendedEarleyParser {
     }
 
     fn chart_parse(&mut self) {
-        self.state.chart_parse(&mut self.sppf,&self.context);
+        self.state.chart_parse(&mut self.sppf, &self.context);
     }
 
     pub fn recognize(&mut self, input: &str) -> bool {
         self.init_input(input);
         self.chart_parse();
-        println!("{}", self.sppf.dump_dot(&self.context));
         self.state
             .state_table
             .last()

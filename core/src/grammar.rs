@@ -99,16 +99,17 @@ impl Grammar {
     }
 
     fn build_term_lut(&mut self) {
-        self.term_lut =
-            self.rules
-                .iter()
-                .flat_map(|rule| {
-                    iter::once((rule.lhs.key, (*rule.lhs).clone())).chain(
+        self.term_lut = self
+            .rules
+            .iter()
+            .flat_map(|rule| {
+                iter::once((rule.lhs.key, (*rule.lhs).clone())).chain(
                     rule.rhs.alternatives.iter().flat_map(|alternative| {
                         alternative.iter().map(|term| (term.key, term.clone()))
-                    }))
-                })
-                .collect()
+                    }),
+                )
+            })
+            .collect()
     }
 
     fn init(&mut self) {
