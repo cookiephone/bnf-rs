@@ -268,7 +268,7 @@ impl ParsingState {
             let state = self.get(col - 1, state_index);
             let mut new_state = state.advance();
             // TODO: (SPPF) make new_node from new state
-            let new_node = sppf.make_node(&new_state, col - 1, state.sppf_node.clone(), self.current_terminal_node.clone());
+            let new_node = sppf.make_node(&new_state, col, state.sppf_node.clone(), self.current_terminal_node.clone());
             new_state.sppf_node = new_node.label.clone();
             // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
@@ -355,10 +355,10 @@ impl ParsingState {
         let mut n_states = self.state_table[col].len();
         while state_index < n_states {
             // TODO: (SPPF) add node (self.state_table[col].symbol, col, col + 1) to sppf
-            if col > 0 {
-                let symbol = self.state_table[col].symbol;
+            if col < self.state_table.len() - 1 {
+                let symbol = self.state_table[col + 1].symbol;
                 let symbol_key = Term::terminal(&symbol.to_string()).key;
-                let node = sppf.insert_from_symbol(symbol_key, col - 1, col);
+                let node = sppf.insert_from_symbol(symbol_key, col, col + 1);
                 self.current_terminal_node = node.label.clone();
             }
             // TODO: that's it
@@ -375,7 +375,7 @@ impl ParsingState {
         col: usize,
     ) {
         //self.nullable_node_memo.clear();
-        let state = &self.state_table[col].states[*state_index];
+        let state = self.get(col, *state_index);
         let symbol = state.at_dot();
         match symbol {
             None => {
