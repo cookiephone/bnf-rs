@@ -47,6 +47,10 @@ impl Term {
         term
     }
 
+    pub fn atomic_terminal_content(&self) -> char {
+        self.content.chars().next().unwrap()
+    }
+
     pub fn terminal_content(&self) -> Result<&String, Error> {
         match self.kind {
             TermKind::Terminal => Ok(&self.content),

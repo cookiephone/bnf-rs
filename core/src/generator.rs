@@ -23,13 +23,13 @@ impl Generator<'_> {
         while self
             .stack
             .last()
-            .map(|term_key| self.grammar.term(*term_key).terminal_content().is_ok())
+            .map(|term_key| self.grammar.term(term_key).terminal_content().is_ok())
             .unwrap_or(false)
         {
             let term_key = self.stack.pop().unwrap();
             self.sample.extend(
                 self.grammar
-                    .term(term_key)
+                    .term(&term_key)
                     .terminal_content()
                     .unwrap()
                     .chars()
@@ -58,7 +58,7 @@ pub enum GenerationStrategy {
 impl GenerationStrategy {
     pub(crate) fn step(&self, context: &mut Generator) -> Result<(), Error> {
         let nonterminal = context.stack.pop().unwrap();
-        let rule = context.grammar.rule(nonterminal);
+        let rule = context.grammar.rule(&nonterminal);
         match self {
             GenerationStrategy::UniformRHSSampling => {
                 let terms = rule

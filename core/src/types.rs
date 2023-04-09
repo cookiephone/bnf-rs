@@ -10,5 +10,5 @@ pub(crate) type StateKey = u64;
 pub(crate) type NoHashMap<K, V> = HashMap<K, V, BuildHasherDefault<NoHashHasher<K>>>;
 pub(crate) type NoHashSet<K> = HashSet<K, BuildHasherDefault<NoHashHasher<K>>>;
 
-pub(crate) type FxHashSet<K> = HashMap<K, BuildHasherDefault<FxHasher>>;
+pub(crate) type FxHashSet<K> = HashSet<K, BuildHasherDefault<FxHasher>>;
 pub(crate) type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;

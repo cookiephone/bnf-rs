@@ -11,6 +11,7 @@ use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use std::fmt;
+use std::iter;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,12 +65,12 @@ impl Grammar {
         parser.recognize(input)
     }
 
-    pub(crate) fn rule(&self, term_key: TermKey) -> &Rule {
-        self.rule_lut.get(&term_key).unwrap()
+    pub(crate) fn rule(&self, term_key: &TermKey) -> &Rule {
+        self.rule_lut.get(term_key).unwrap()
     }
 
-    pub(crate) fn term(&self, term_key: TermKey) -> &Term {
-        self.term_lut.get(&term_key).unwrap()
+    pub(crate) fn term(&self, term_key: &TermKey) -> &Term {
+        self.term_lut.get(term_key).unwrap()
     }
 
     pub(crate) fn atomize_terminals(&mut self) {
@@ -102,9 +103,10 @@ impl Grammar {
             self.rules
                 .iter()
                 .flat_map(|rule| {
+                    iter::once((rule.lhs.key, (*rule.lhs).clone())).chain(
                     rule.rhs.alternatives.iter().flat_map(|alternative| {
                         alternative.iter().map(|term| (term.key, term.clone()))
-                    })
+                    }))
                 })
                 .collect()
     }
@@ -167,9 +169,9 @@ impl GrammarBuilder {
                 )
                 .lhs
                 .key,
+            rules: self.rules,
             rule_lut: Default::default(),
             term_lut: Default::default(),
-            rules: self.rules,
         };
         grammar.init();
         grammar

@@ -1,9 +1,10 @@
 use crate::error::Error;
 use crate::grammar::Grammar;
-use crate::sppf::SPPFNodeLabel;
-use crate::sppf::SPPF;
+use crate::sppf::SppfNodeLabel;
+use crate::sppf::Sppf;
 use crate::term::Term;
 use crate::term::TermKind;
+use crate::types::FxHashMap;
 use crate::types::NoHashMap;
 use crate::types::NoHashSet;
 use crate::types::StateKey;
@@ -22,7 +23,7 @@ pub(crate) struct EarleyState {
     pub(crate) expression: Rc<Vec<Term>>,
     pub(crate) dot: usize,
     pub(crate) start: usize,
-    pub(crate) sppf_node: SPPFNodeLabel,
+    pub(crate) sppf_node: SppfNodeLabel,
 }
 
 impl EarleyState {
@@ -32,7 +33,7 @@ impl EarleyState {
             expression,
             dot,
             start,
-            sppf_node: SPPFNodeLabel::null(),
+            sppf_node: SppfNodeLabel::null(),
         }
     }
 
@@ -42,7 +43,7 @@ impl EarleyState {
             expression: self.expression.clone(),
             dot: self.dot + 1,
             start: self.start,
-            sppf_node: SPPFNodeLabel::null(),
+            sppf_node: SppfNodeLabel::null(),
         }
     }
 
@@ -82,7 +83,6 @@ impl fmt::Display for EarleyState {
             s.push_str(format!("{} ", self.expression[i]).as_str());
         }
         s.push_str(format!("({})", self.start).as_str());
-
         write!(f, "{}", s)
     }
 }
@@ -131,8 +131,8 @@ impl Column {
     }
 }
 
-struct ParsingContext {
-    grammar: Grammar,
+pub(crate) struct ParsingContext {
+    pub(crate) grammar: Grammar,
     input: Vec<char>,
     nullable: NoHashSet<TermKey>,
 }
@@ -178,7 +178,7 @@ impl ParsingContext {
 #[derive(Default)]
 pub(crate) struct ParsingState {
     state_table: Vec<Column>,
-    sppf: SPPF,
+    nullable_node_memo: FxHashMap<TermKey, SppfNodeLabel>,
 }
 
 impl ParsingState {
@@ -186,60 +186,112 @@ impl ParsingState {
         self.state_table[col].add(state);
     }
 
-    fn insert_completion(&mut self, col: usize, state: EarleyState) {
+    fn insert_completion(&mut self, sppf: &mut Sppf, col: usize, mut state: EarleyState) {
         // TODO: (SPPF) make new_node from new_state
+        let node = sppf.insert_from_state(&state, col);
+        state.sppf_node = node.label.clone();
         // TODO: (SPPF) point new_state to new_node
         self.insert(col, state);
-    }
-
-    fn sppf_insert(&mut self, end: usize, state: &EarleyState) {
-        self.sppf.insert_from_state(state, end);
     }
 
     fn get(&self, col: usize, state_index: usize) -> &EarleyState {
         &self.state_table[col].states[state_index]
     }
 
-    fn predict(
+    fn get_mut(&mut self, col: usize, state_index: usize) -> &mut EarleyState {
+        &mut self.state_table[col].states[state_index]
+    }
+
+    fn predict2(
         &mut self,
+        sppf: &mut Sppf,
         context: &ParsingContext,
         col: usize,
         state_index: usize,
         nonterminal: TermKey,
     ) {
-        for alternative in &context.grammar.rule(nonterminal).rhs.alternatives {
+        for alternative in &context.grammar.rule(&nonterminal).rhs.alternatives {
             let new_state = EarleyState::new(nonterminal, alternative.clone(), 0, col);
             self.insert(col, new_state);
         }
         if context.nullable.contains(&nonterminal) {
-            let new_state = self.get(col, state_index).advance();
+            let state = self.get(col, state_index);
+            let node_label = sppf.get_node(&state.sppf_node).label.clone();
+            let mut new_state = state.advance();
             // TODO: (SPPF) make new_node from new state
+            let new_node = sppf.insert_from_state(&new_state, col);
+            new_state.sppf_node = new_node.label.clone();
+            if !node_label.is_null() {
+                new_node.add_child(node_label);
+            }
             // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
     }
 
-    fn scan(&mut self, col: usize, state_index: usize, symbol_opt: Option<char>) {
+    fn predict(
+        &mut self,
+        sppf: &mut Sppf,
+        context: &ParsingContext,
+        col: usize,
+        state_index: usize,
+        nonterminal: TermKey,
+    ) {
+        for alternative in &context.grammar.rule(&nonterminal).rhs.alternatives {
+            let new_state = EarleyState::new(nonterminal, alternative.clone(), 0, col);
+            self.insert(col, new_state);
+        }
+        if context.nullable.contains(&nonterminal) {
+            let state = self.get(col, state_index);
+            let new_state = state.advance();
+            self.insert(col, new_state);
+        }
+    }
+
+    fn make_nullable_prediction_nodes(&mut self, nonterminal: TermKey) -> Option<SppfNodeLabel> {
+        if let Some(label) = self.nullable_node_memo.get(&nonterminal) {
+            // TODO (issue: nonterminal for prediction shoul have a value in H set when it does not during testing...)
+        }
+        None
+    }
+
+    fn scan(&mut self, sppf: &mut Sppf, col: usize, state_index: usize, symbol_opt: Option<char>) {
         if symbol_opt.is_none() || self.state_table[col].symbol == symbol_opt.unwrap() {
-            let new_state = self.get(col - 1, state_index).advance();
+            let state = self.get(col - 1, state_index);
+            let node_label = sppf.get_node(&state.sppf_node).label.clone();
+            let mut new_state = state.advance();
             // TODO: (SPPF) make new_node from new state
+            let new_node = sppf.insert_from_state(&new_state, col);
+            new_state.sppf_node = new_node.label.clone();
+            if !node_label.is_null() {
+                new_node.add_child(node_label);
+            }
             // TODO: (SPPF) point new_state to new_node
             self.insert(col, new_state);
         }
     }
 
-    fn leo_complete(&mut self, col: usize, state_index: usize) {
-        let state = self.get(col, state_index).clone();
+    fn leo_complete(&mut self, sppf: &mut Sppf, col: usize, state_index: usize) {
+        let state = self.get_mut(col, state_index).clone();
         // TODO: (SPPF) add new node (lhs, col, col) to sppf if state points to null node
+        if state.sppf_node.is_null() {
+            let node = sppf.insert_from_symbol(state.lhs, col, col);
+            node.add_child(SppfNodeLabel::epsilon());
+            let state_mut = self.get_mut(col, state_index);
+            state_mut.sppf_node = node.label.clone();
+        }
+        if state.start == col {
+            self.nullable_node_memo.insert(state.lhs, state.sppf_node.clone());
+        }
         // TODO: (SPPF) point state to new node in that case
         if let Some(topmost) = self.deterministic_reduction(&state) {
-            self.insert_completion(col, topmost);
+            self.insert_completion(sppf, col, topmost);
         } else {
-            self.earley_complete(col, state_index);
+            self.earley_complete(sppf, col, state_index);
         }
     }
 
-    fn earley_complete(&mut self, col: usize, state_index: usize) {
+    fn earley_complete(&mut self, sppf: &mut Sppf, col: usize, state_index: usize) {
         let state = self.get(col, state_index);
         let completions = self.state_table[state.start]
             .states
@@ -248,7 +300,7 @@ impl ParsingState {
             .map(|parent| parent.advance())
             .collect::<Vec<EarleyState>>();
         for new_state in completions {
-            self.insert_completion(col, new_state);
+            self.insert_completion(sppf, col, new_state);
         }
     }
 
@@ -285,45 +337,53 @@ impl ParsingState {
         None
     }
 
-    fn chart_parse(&mut self, context: &ParsingContext) {
+    fn chart_parse(&mut self, sppf: &mut Sppf, context: &ParsingContext) {
         let n_columns = self.state_table.len();
         for col in 0..n_columns {
-            self.chart_parse_column_step(context, col);
+            self.chart_parse_column_step(sppf, context, col);
         }
     }
 
-    fn chart_parse_column_step(&mut self, context: &ParsingContext, col: usize) {
+    fn chart_parse_column_step(&mut self, sppf: &mut Sppf, context: &ParsingContext, col: usize) {
         let mut state_index = 0;
         let mut n_states = self.state_table[col].len();
         while state_index < n_states {
             // TODO: (SPPF) add node (self.state_table[col].symbol, col, col + 1) to sppf
-            self.chart_parse_state_step(context, &mut state_index, &mut n_states, col);
+            if col > 0 {
+                let symbol = self.state_table[col].symbol;
+                let symbol_key = Term::terminal(&symbol.to_string()).key;
+                sppf.insert_from_symbol(symbol_key, col, col + 1);
+            }
+            // TODO: that's it
+            self.chart_parse_state_step(sppf, context, &mut state_index, &mut n_states, col);
         }
     }
 
     fn chart_parse_state_step(
         &mut self,
+        sppf: &mut Sppf,
         context: &ParsingContext,
         state_index: &mut usize,
         n_states: &mut usize,
         col: usize,
     ) {
+        self.nullable_node_memo.clear();
         let state = &self.state_table[col].states[*state_index];
         let symbol = state.at_dot();
         match symbol {
             None => {
-                self.leo_complete(col, *state_index);
+                self.leo_complete(sppf, col, *state_index);
             }
             Some(term) => match term.kind {
                 TermKind::Nonterminal => {
                     let term = term.clone();
-                    self.predict(context, col, *state_index, term.key);
+                    self.predict(sppf, context, col, *state_index, term.key);
                 }
                 TermKind::Terminal => {
                     let next_col = col + 1;
                     if next_col < self.state_table.len() {
                         let symbol = term.content.chars().next();
-                        self.scan(next_col, *state_index, symbol);
+                        self.scan(sppf, next_col, *state_index, symbol);
                     }
                 }
             },
@@ -336,6 +396,7 @@ impl ParsingState {
 pub struct ExtendedEarleyParser {
     context: ParsingContext,
     state: ParsingState,
+    sppf: Sppf,
 }
 
 impl ExtendedEarleyParser {
@@ -398,12 +459,13 @@ impl ExtendedEarleyParser {
     }
 
     fn chart_parse(&mut self) {
-        self.state.chart_parse(&self.context);
+        self.state.chart_parse(&mut self.sppf,&self.context);
     }
 
     pub fn recognize(&mut self, input: &str) -> bool {
         self.init_input(input);
         self.chart_parse();
+        println!("{}", self.sppf.dump_dot(&self.context));
         self.state
             .state_table
             .last()
@@ -423,6 +485,7 @@ impl From<&Grammar> for ExtendedEarleyParser {
         Self {
             context: grammar.into(),
             state: Default::default(),
+            sppf: Default::default(),
         }
     }
 }
