@@ -36,7 +36,7 @@ impl SppfNodeItem {
                     s.push_str(format!("{} ", rhs[i]).replace('"', "'").as_str());
                 }
                 s
-            },
+            }
             Self::Epsilon => "epsilon".to_owned(),
             Self::Null => "null".to_owned(),
         }
@@ -110,10 +110,15 @@ impl SppfNodeLabel {
         matches!(self.item, SppfNodeItem::Null)
     }
 
-    fn dump_str(&self, context: &ParsingContext) -> String {
+    pub(crate) fn dump_str(&self, context: &ParsingContext) -> String {
         match self.item {
             SppfNodeItem::Null | SppfNodeItem::Epsilon => self.item.dump_str(context),
-            _ => format!("{} [{}, {}]", self.item.dump_str(context), self.start, self.end),
+            _ => format!(
+                "{} [{}, {}]",
+                self.item.dump_str(context),
+                self.start,
+                self.end
+            ),
         }
     }
 }
@@ -134,7 +139,6 @@ impl Hash for SppfNodeLabel {
                 self.end.hash(state);
             }
         }
-        
     }
 }
 
@@ -193,27 +197,40 @@ pub(crate) struct Sppf {
 
 impl Sppf {
     fn new() -> Self {
-        let mut instance = Self { nodes: Default::default() };
+        let mut instance = Self {
+            nodes: Default::default(),
+        };
         instance.init();
         instance
     }
 
     fn init(&mut self) {
         self.insert(SppfNodeLabel::null());
-          self.insert(SppfNodeLabel::epsilon());
+        self.insert(SppfNodeLabel::epsilon());
     }
 
     fn insert(&mut self, label: SppfNodeLabel) -> &mut SppfNode {
         self.nodes.entry(label.clone()).or_insert(label.into())
     }
 
-    pub(crate) fn insert_from_symbol(&mut self, symbol: TermKey, start: usize, end: usize) -> &mut SppfNode {
+    pub(crate) fn insert_from_symbol(
+        &mut self,
+        symbol: TermKey,
+        start: usize,
+        end: usize,
+    ) -> &mut SppfNode {
         let item = SppfNodeItem::Symbol(symbol);
         let label = SppfNodeLabel { item, start, end };
         self.insert(label)
     }
 
-    pub(crate) fn make_node(&mut self, state: &EarleyState, end: usize, w: SppfNodeLabel, v: SppfNodeLabel) -> &mut SppfNode {
+    pub(crate) fn make_node(
+        &mut self,
+        state: &EarleyState,
+        end: usize,
+        w: SppfNodeLabel,
+        v: SppfNodeLabel,
+    ) -> &mut SppfNode {
         let is_finished = state.at_dot().is_none();
         if state.dot <= 1 && !is_finished {
             return self.get_node_mut(&v);
@@ -226,7 +243,11 @@ impl Sppf {
             },
             true => SppfNodeItem::Symbol(state.lhs),
         };
-        let label = SppfNodeLabel { item, start: state.start, end };
+        let label = SppfNodeLabel {
+            item,
+            start: state.start,
+            end,
+        };
         let node = self.insert(label);
         if w.is_null() {
             node.add_unary_family(v);
@@ -249,12 +270,25 @@ impl Sppf {
             dot.push_str(&format!("    \"{}\";\n", parent.label.dump_str(context)));
             for (member_1, member_2) in &parent.families {
                 if member_2.is_null() {
-                    edges.push_str(&format!("    \"{}\" -> \"{}\";\n", parent.label.dump_str(context), member_1.dump_str(context)));
+                    edges.push_str(&format!(
+                        "    \"{}\" -> \"{}\";\n",
+                        parent.label.dump_str(context),
+                        member_1.dump_str(context)
+                    ));
                 } else {
                     dot.push_str(&format!("    {i} [shape=point];\n"));
-                    edges.push_str(&format!("    \"{}\" -> \"{i}\" [dir=none];\n", parent.label.dump_str(context)));
-                    edges.push_str(&format!("    \"{i}\" -> \"{}\";\n", member_1.dump_str(context)));
-                    edges.push_str(&format!("    \"{i}\" -> \"{}\";\n", member_2.dump_str(context)));
+                    edges.push_str(&format!(
+                        "    \"{}\" -> \"{i}\" [dir=none];\n",
+                        parent.label.dump_str(context)
+                    ));
+                    edges.push_str(&format!(
+                        "    \"{i}\" -> \"{}\";\n",
+                        member_1.dump_str(context)
+                    ));
+                    edges.push_str(&format!(
+                        "    \"{i}\" -> \"{}\";\n",
+                        member_2.dump_str(context)
+                    ));
                     i += 1;
                 }
             }
