@@ -210,33 +210,6 @@ impl ParsingState {
         &mut self.state_table[col].states[state_index]
     }
 
-    /*fn predict2(
-        &mut self,
-        sppf: &mut Sppf,
-        context: &ParsingContext,
-        col: usize,
-        state_index: usize,
-        nonterminal: TermKey,
-    ) {
-        for alternative in &context.grammar.rule(&nonterminal).rhs.alternatives {
-            let new_state = EarleyState::new(nonterminal, alternative.clone(), 0, col);
-            self.insert(col, new_state);
-        }
-        if context.nullable.contains(&nonterminal) {
-            let state = self.get(col, state_index);
-            let node_label = sppf.get_node(&state.sppf_node).label.clone();
-            let mut new_state = state.advance();
-            // TODO: (SPPF) make new_node from new state
-            let new_node = sppf.insert_from_state(&new_state, col);
-            new_state.sppf_node = new_node.label.clone();
-            if !node_label.is_null() {
-                new_node.add_unary_family(node_label);
-            }
-            // TODO: (SPPF) point new_state to new_node
-            self.insert(col, new_state);
-        }
-    }*/
-
     fn predict(
         &mut self,
         sppf: &mut Sppf,
@@ -249,25 +222,20 @@ impl ParsingState {
             let new_state = EarleyState::new(nonterminal, alternative.clone(), 0, col);
             self.insert(col, new_state);
         }
-        /*if context.nullable.contains(&nonterminal) {
+        /*if context.nullable.contains(&nonterminal) { // TODO: this part breaks SPPF, but is necessary for correctness
             let state = self.get(col, state_index);
-            let new_state = state.advance();
-            self.insert(col, new_state);
+            let null_completion = state.advance();
+            self.insert(col, null_completion);
+            //self.insert_completion(sppf, col, null_completion, parent_node, state.sppf_node.clone());
         }*/
         if let Some(label) = self.nullable_node_memo.get(&nonterminal) {
             let state = self.get(col, state_index);
-            let new_state = state.advance();
+            let mut new_state = state.advance();
             let node = sppf.make_node(&new_state, col, state.sppf_node.clone(), label.clone());
+            new_state.sppf_node = node.label.clone();
             self.insert(col, new_state);
         }
     }
-
-    /*fn make_nullable_prediction_nodes(&mut self, nonterminal: TermKey) -> Option<SppfNodeLabel> {
-        if let Some(label) = self.nullable_node_memo.get(&nonterminal) {
-            // TODO (issue: nonterminal for prediction shoul have a value in H set when it does not during testing...)
-        }
-        None
-    }*/
 
     fn scan(&mut self, sppf: &mut Sppf, col: usize, state_index: usize, symbol_opt: Option<char>) {
         if symbol_opt.is_none() || self.state_table[col].symbol == symbol_opt.unwrap() {
@@ -313,7 +281,12 @@ impl ParsingState {
         let completions = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
+            .filter(|s| {
+                match s.at_dot() {
+                    Some(term) => term.key == state.lhs,
+                    None => false,
+                }
+            })
             .map(|parent| (parent.advance(), parent.sppf_node.clone()))
             .collect::<Vec<(EarleyState, SppfNodeLabel)>>();
         for (new_state, parent_node) in completions {
@@ -347,7 +320,12 @@ impl ParsingState {
         let parents = self.state_table[state.start]
             .states
             .iter()
-            .filter(|s| s.at_dot().is_some() && s.at_dot().unwrap().key == state.lhs)
+            .filter(|s| {
+                match s.at_dot() {
+                    Some(term) => term.key == state.lhs,
+                    None => false,
+                }
+            })
             .take(2)
             .collect::<Vec<&EarleyState>>();
         if parents.len() != 1 {
@@ -489,7 +467,7 @@ impl ExtendedEarleyParser {
     pub fn recognize(&mut self, input: &str) -> bool {
         self.init_input(input);
         self.chart_parse();
-        println!("{}", self.sppf.dump_dot(&self.context));
+        //println!("{}", self.sppf.dump_dot(&self.context));
         self.state
             .state_table
             .last()

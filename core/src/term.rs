@@ -47,6 +47,10 @@ impl Term {
         term
     }
 
+    pub fn epsilon() -> Self {
+        Self::terminal("")
+    }
+
     pub fn atomic_terminal_content(&self) -> char {
         self.content.chars().next().unwrap()
     }
